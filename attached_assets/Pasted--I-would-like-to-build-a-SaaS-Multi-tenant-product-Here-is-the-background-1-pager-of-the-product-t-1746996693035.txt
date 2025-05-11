@@ -1,0 +1,38 @@
+
+I would like to build a SaaS Multi tenant product, Here is the background 1 pager of the product that we are building.
+
+"
+AURA AI GOVERN
+The Complete AI Governance Platform for Responsible Innovation
+
+PLATFORM CAPABILITIES
+🔍 MAP
+Understanding your AI footprint
+AI Usage Finder - Scan codebases and systems to discover where and how AI is deployed
+AI Use Case Database - Document and categorize allowed vs. restricted AI applications
+CMDB Integration - Automatically identify AI components across your infrastructure
+Risk Documentation - Catalog potential risks associated with each AI implementation
+📊 MEASURE
+Evaluating compliance and risk
+Compliance Rules Engine - Create and apply governance rules to your AI systems
+AuraAI Wizard - Intelligent assistance for rule development and application
+PII Leak Detection - Identify patterns where personal information may be exposed
+Bias Analysis - Evaluate datasets and models for potential algorithmic biases
+Toxicity Analysis - Measure harmful outputs and content in your AI systems
+🛠️ MANAGE
+Taking control of your AI governance
+Frontier Model Alerts - Stay updated on security issues and feature changes from your AI providers
+Aura Risk Register - Track remediation from identification through resolution
+Lifecycle Management - Comprehensive oversight from development to deployment and beyond
+"
+
+
+I would like to create a three tier application stack. Frontend, Backend, DB (postgres), backend is driven by apis, frontend only tasks to backend using APIs. 
+1) i would like you to start with basic features which basis SaaS features like multi tenant and RBAC. 
+2) multi page UI with sidebar having dashboard, Map, Measure, Manage, UserManagement
+3) Dashboard is pretty much highlights from Map, manage and Measure
+4) User Management can be standard RBAC. 
+5) Create a admin org, with admin user, and create a tenant org called demo_org and create a demo_org_user for testing.
+6) For each of the Map, Measure and Manage sidebar screens, i would like the features to be selection bar at top of each page. 
+7) Lets leave Map, Measure, Manage as placeholders for now, blank page is fine.. i will develop these pages in the next iteration. 
+8) I would like separate apps for frontend and backend. 
