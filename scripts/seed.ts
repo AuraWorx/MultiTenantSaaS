@@ -159,77 +159,76 @@ async function seed() {
 
     // Create Risk Items
     console.log('Creating risk items...');
-    await db.insert(riskItems).values({
-      title: 'Data Privacy Risk',
-      description: 'Risk of exposing customer PII through chat logs',
-      severity: 'high',
-      status: 'open',
-      aiSystemId: chatbot.id,
-      organizationId: adminOrg.id,
-      createdById: adminUser.id,
-    });
-
-    await db.insert(riskItems).values({
-      title: 'Model Bias Risk',
-      description: 'Risk of bias in fraud detection for certain demographic groups',
-      severity: 'medium',
-      status: 'mitigated',
-      aiSystemId: fraudSystem.id,
-      organizationId: adminOrg.id,
-      createdById: adminUser.id,
-    });
-
-    await db.insert(riskItems).values({
-      title: 'Discriminatory Hiring Risk',
-      description: 'Risk of discrimination in candidate screening process',
-      severity: 'high',
-      status: 'open',
-      aiSystemId: hrSystem.id,
-      organizationId: adminOrg.id,
-      createdById: demoUser.id,
-    });
-
-    await db.insert(riskItems).values({
-      title: 'Market Manipulation Risk',
-      description: 'Risk of algorithm causing market manipulation',
-      severity: 'critical',
-      status: 'open',
-      aiSystemId: tradingBot.id,
-      organizationId: financeOrg.id,
-      createdById: adminUser.id,
-    });
+    await db.insert(riskItems).values([
+      {
+        title: 'Data Privacy Risk',
+        description: 'Risk of exposing customer PII through chat logs',
+        severity: 'high',
+        status: 'open',
+        aiSystemId: chatbot.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        title: 'Model Bias Risk',
+        description: 'Risk of bias in fraud detection for certain demographic groups',
+        severity: 'medium',
+        status: 'mitigated',
+        aiSystemId: fraudSystem.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        title: 'Discriminatory Hiring Risk',
+        description: 'Risk of discrimination in candidate screening process',
+        severity: 'high',
+        status: 'open',
+        aiSystemId: hrSystem.id,
+        organizationId: adminOrg.id,
+        createdById: demoUser.id,
+      },
+      {
+        title: 'Market Manipulation Risk',
+        description: 'Risk of algorithm causing market manipulation',
+        severity: 'critical',
+        status: 'open',
+        aiSystemId: tradingBot.id,
+        organizationId: financeOrg.id,
+        createdById: adminUser.id,
+      }
+    ]);
 
     // Create Compliance Issues
     console.log('Creating compliance issues...');
-    await db.insert(complianceIssues).values({
-      title: 'GDPR Compliance Gap',
-      description: 'Missing consent collection mechanism for chat data storage',
-      severity: 'high',
-      status: 'open',
-      aiSystemId: chatbot.id,
-      organizationId: adminOrg.id,
-      createdById: adminUser.id,
-    });
-
-    await db.insert(complianceIssues).values({
-      title: 'Missing Model Documentation',
-      description: 'Inadequate documentation of model training data and parameters',
-      severity: 'medium',
-      status: 'in-progress',
-      aiSystemId: fraudSystem.id,
-      organizationId: adminOrg.id,
-      createdById: adminUser.id,
-    });
-
-    await db.insert(complianceIssues).values({
-      title: 'Equal Employment Issue',
-      description: 'Potential violation of equal employment opportunity regulations',
-      severity: 'high',
-      status: 'open',
-      aiSystemId: hrSystem.id,
-      organizationId: adminOrg.id,
-      createdById: demoUser.id,
-    });
+    await db.insert(complianceIssues).values([
+      {
+        title: 'GDPR Compliance Gap',
+        description: 'Missing consent collection mechanism for chat data storage',
+        severity: 'high',
+        status: 'open',
+        aiSystemId: chatbot.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        title: 'Missing Model Documentation',
+        description: 'Inadequate documentation of model training data and parameters',
+        severity: 'medium',
+        status: 'in-progress',
+        aiSystemId: fraudSystem.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        title: 'Equal Employment Issue',
+        description: 'Potential violation of equal employment opportunity regulations',
+        severity: 'high',
+        status: 'open',
+        aiSystemId: hrSystem.id,
+        organizationId: adminOrg.id,
+        createdById: demoUser.id,
+      }
+    ]);
 
     console.log('Database seed completed successfully!');
     
