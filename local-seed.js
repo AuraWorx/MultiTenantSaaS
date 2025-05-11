@@ -125,55 +125,55 @@ async function seed() {
     console.log('Creating AI systems...');
     const chatbotRes = await client.query(`
       INSERT INTO ai_systems (
-        name, description, version, status, risk_level,
+        name, description, type, location,
         organization_id, created_by_id
       ) VALUES (
-        'Customer Support Chatbot', 'AI assistant for customer support', '1.0', 
-        'production', 'medium', $1, $2
+        'Customer Support Chatbot', 'AI assistant for customer support', 
+        'Conversational AI', 'cloud', $1, $2
       ) RETURNING *
     `, [adminOrg.id, adminUser.id]);
     const chatbot = chatbotRes.rows[0];
 
     const fraudSystemRes = await client.query(`
       INSERT INTO ai_systems (
-        name, description, version, status, risk_level,
+        name, description, type, location,
         organization_id, created_by_id
       ) VALUES (
-        'Fraud Detection System', 'ML system to detect financial fraud', '2.3', 
-        'production', 'high', $1, $2
+        'Fraud Detection System', 'ML system to detect financial fraud', 
+        'Machine Learning', 'on-premise', $1, $2
       ) RETURNING *
     `, [adminOrg.id, adminUser.id]);
     const fraudSystem = fraudSystemRes.rows[0];
 
     const hrSystemRes = await client.query(`
       INSERT INTO ai_systems (
-        name, description, version, status, risk_level,
+        name, description, type, location,
         organization_id, created_by_id
       ) VALUES (
-        'HR Candidate Screening', 'AI for screening job candidates', '1.5', 
-        'testing', 'medium', $1, $2
+        'HR Candidate Screening', 'AI for screening job candidates', 
+        'Machine Learning', 'cloud', $1, $2
       ) RETURNING *
     `, [adminOrg.id, demoUser.id]);
     const hrSystem = hrSystemRes.rows[0];
 
     const tradingBotRes = await client.query(`
       INSERT INTO ai_systems (
-        name, description, version, status, risk_level,
+        name, description, type, location,
         organization_id, created_by_id
       ) VALUES (
-        'Automated Trading Bot', 'AI for high-frequency trading', '3.2', 
-        'production', 'critical', $1, $2
+        'Automated Trading Bot', 'AI for high-frequency trading', 
+        'Decision System', 'hybrid', $1, $2
       ) RETURNING *
     `, [financeOrg.id, adminUser.id]);
     const tradingBot = tradingBotRes.rows[0];
 
     const recommenderRes = await client.query(`
       INSERT INTO ai_systems (
-        name, description, version, status, risk_level,
+        name, description, type, location,
         organization_id, created_by_id
       ) VALUES (
-        'Product Recommender', 'ML system for product recommendations', '2.0', 
-        'development', 'low', $1, $2
+        'Product Recommender', 'ML system for product recommendations', 
+        'Recommendation Engine', 'cloud', $1, $2
       ) RETURNING *
     `, [financeOrg.id, viewerUser.id]);
     const recommender = recommenderRes.rows[0];
