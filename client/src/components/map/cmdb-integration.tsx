@@ -385,21 +385,21 @@ export function CMDBIntegration() {
                               <span className="text-sm font-medium">High Risk</span>
                               <span className="text-sm text-muted-foreground">12%</span>
                             </div>
-                            <Progress value={12} className="h-2 bg-red-100" indicatorClassName="bg-red-500" />
+                            <Progress value={12} className="h-2 bg-red-100" />
                           </div>
                           <div>
                             <div className="flex justify-between mb-1">
                               <span className="text-sm font-medium">Medium Risk</span>
                               <span className="text-sm text-muted-foreground">43%</span>
                             </div>
-                            <Progress value={43} className="h-2 bg-yellow-100" indicatorClassName="bg-yellow-500" />
+                            <Progress value={43} className="h-2 bg-yellow-100" />
                           </div>
                           <div>
                             <div className="flex justify-between mb-1">
                               <span className="text-sm font-medium">Low Risk</span>
                               <span className="text-sm text-muted-foreground">45%</span>
                             </div>
-                            <Progress value={45} className="h-2 bg-green-100" indicatorClassName="bg-green-500" />
+                            <Progress value={45} className="h-2 bg-green-100" />
                           </div>
                         </div>
                       </CardContent>

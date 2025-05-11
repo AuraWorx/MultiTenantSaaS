@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { FeatureTabs } from '@/components/layout/feature-tabs';
+import { AIUsageFinder } from '@/components/map/ai-usage-finder';
+import { UseCaseDatabase } from '@/components/map/use-case-database';
+import { CMDBIntegration } from '@/components/map/cmdb-integration';
+import { RiskDocumentation } from '@/components/map/risk-documentation';
 import { MapFeatures } from '@/types';
 
 const mapFeatures: MapFeatures = {
@@ -57,22 +61,12 @@ export default function MapPage() {
                   </div>
                 </div>
               ) : (
-                <div className="py-16">
-                  <div className="text-center">
-                    <svg className="mx-auto h-12 w-12 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <h3 className="mt-2 text-lg font-medium text-gray-900">
-                      {mapFeatures[currentTab as keyof MapFeatures]?.name || currentTab}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">This feature is coming soon</p>
-                    <div className="mt-6">
-                      <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                        Add Content
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <>
+                  {currentTab === mapFeatures.aiUsageFinder.id && <AIUsageFinder />}
+                  {currentTab === mapFeatures.useCaseDatabase.id && <UseCaseDatabase />}
+                  {currentTab === mapFeatures.cmdbIntegration.id && <CMDBIntegration />}
+                  {currentTab === mapFeatures.riskDocumentation.id && <RiskDocumentation />}
+                </>
               )}
             </div>
           </div>

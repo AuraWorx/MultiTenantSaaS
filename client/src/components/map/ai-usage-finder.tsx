@@ -41,21 +41,21 @@ export function AIUsageFinder() {
           name: "Customer Support Chatbot",
           description: "AI-powered chatbot for customer support interactions",
           department: "Customer Support",
-          riskLevel: "medium"
+          riskLevel: "medium" as "medium"
         },
         {
           id: 2,
           name: "Sentiment Analysis Tool",
           description: "Analyzes customer feedback for sentiment",
           department: "Marketing",
-          riskLevel: "low"
+          riskLevel: "low" as "low"
         },
         {
           id: 3,
           name: "Fraud Detection System",
           description: "ML system for detecting fraudulent transactions",
           department: "Security",
-          riskLevel: "high"
+          riskLevel: "high" as "high"
         }
       ].filter(result => 
         result.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
