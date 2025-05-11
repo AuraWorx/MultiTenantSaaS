@@ -4,17 +4,21 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { UsersTable } from '@/components/user-management/users-table';
 import { UserForm } from '@/components/user-management/user-form';
+import { OrganizationForm } from '@/components/user-management/organization-form';
 import { useAuth } from '@/hooks/use-auth';
 import { Redirect } from 'wouter';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Organization, Role, User } from '@shared/schema';
 
 export default function UserManagementPage() {
   const { user } = useAuth();
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isAddOrgDialogOpen, setIsAddOrgDialogOpen] = useState(false);
+  const [isEditOrgDialogOpen, setIsEditOrgDialogOpen] = useState(false);
+  const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [activeTab, setActiveTab] = useState('users');
   
   // Only administrators should access this page
@@ -97,6 +101,18 @@ export default function UserManagementPage() {
                 </TabsContent>
                 
                 <TabsContent value="organizations">
+                  <div className="mb-4 flex justify-end">
+                    <Button 
+                      onClick={() => {
+                        setActiveTab('organizations');
+                        setIsAddOrgDialogOpen(true);
+                      }}
+                      className="flex items-center"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Add Organization
+                    </Button>
+                  </div>
                   <div className="bg-white shadow overflow-hidden sm:rounded-md">
                     <ul className="divide-y divide-gray-200">
                       {orgsLoading ? (
@@ -106,8 +122,20 @@ export default function UserManagementPage() {
                           <li key={org.id} className="px-4 py-4 sm:px-6">
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium text-gray-900">{org.name}</p>
-                              <div className="mt-1 text-sm text-gray-500">
-                                Created: {new Date(org.createdAt).toLocaleDateString()}
+                              <div className="flex items-center space-x-2">
+                                <div className="mt-1 text-sm text-gray-500 mr-2">
+                                  Created: {new Date(org.createdAt).toLocaleDateString()}
+                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => {
+                                    setEditingOrg(org);
+                                    setIsEditOrgDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
                           </li>

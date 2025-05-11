@@ -25,7 +25,8 @@ import { Organization } from '@shared/schema';
 export function Sidebar() {
   const [location] = useLocation();
   const { user, logoutMutation, switchOrganization } = useAuth();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Default to open on desktop
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
   
   const { data: organizations, isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations'],
@@ -80,9 +81,7 @@ export function Sidebar() {
       />
 
       <div 
-        className={`${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        } fixed inset-y-0 left-0 z-30 w-64 overflow-y-auto transition duration-300 transform bg-white border-r border-gray-200 lg:translate-x-0 lg:static lg:inset-0`}
+        className="fixed inset-y-0 left-0 z-30 w-64 overflow-y-auto bg-white border-r border-gray-200 lg:static lg:inset-0"
       >
         {/* Logo */}
         <div className="flex items-center justify-center h-16 px-6 border-b border-gray-200">

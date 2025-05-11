@@ -28,27 +28,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard", isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
-      const organizationId = user.organizationId;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = user.organization?.id || user.organizationId;
 
-      // Get AI systems count
-      const aiSystemsCount = await db.select({ count: db.fn.count() })
-        .from(aiSystems)
-        .where(eq(aiSystems.organizationId, organizationId));
-
-      // Get compliance issues count
-      const complianceIssuesCount = await db.select({ count: db.fn.count() })
-        .from(complianceIssues)
-        .where(
-          eq(complianceIssues.organizationId, organizationId)
-        );
-
-      // Get open risks count
-      const openRisksCount = await db.select({ count: db.fn.count() })
-        .from(riskItems)
-        .where(
-          eq(riskItems.organizationId, organizationId) && 
-          eq(riskItems.status, 'open')
-        );
+      // Use simpler count queries that will work with PostgreSQL
+      const aiSystemsResult = await db.execute(
+        db.select({ count: db.fn.count() }).from(aiSystems)
+          .where(eq(aiSystems.organizationId, organizationId))
+      );
+      
+      const complianceIssuesResult = await db.execute(
+        db.select({ count: db.fn.count() }).from(complianceIssues)
+          .where(eq(complianceIssues.organizationId, organizationId))
+      );
+      
+      const openRisksResult = await db.execute(
+        db.select({ count: db.fn.count() }).from(riskItems)
+          .where(eq(riskItems.organizationId, organizationId))
+      );
+      
+      // Convert BigInt to Number for the JSON response
+      const aiSystemsCount = Number(aiSystemsResult[0]?.count || 0);
+      const complianceIssuesCount = Number(complianceIssuesResult[0]?.count || 0);
+      const openRisksCount = Number(openRisksResult[0]?.count || 0);
 
       // Get recent activities (mock data for now)
       const activities = [
@@ -77,9 +81,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         stats: {
-          aiSystemsCount: aiSystemsCount[0]?.count || 0,
-          complianceIssuesCount: complianceIssuesCount[0]?.count || 0,
-          openRisksCount: openRisksCount[0]?.count || 0
+          aiSystemsCount,
+          complianceIssuesCount,
+          openRisksCount
         },
         activities
       });
@@ -184,6 +188,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching organizations:", error);
       res.status(500).json({ message: "Failed to fetch organizations" });
+    }
+  });
+
+  app.post("/api/organizations", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user is admin
+      if (!req.user || req.user.role.id !== 1) {
+        return res.status(403).json({ message: "Forbidden: Only administrators can create organizations" });
+      }
+
+      // Validate organization data
+      const orgData = insertOrganizationSchema.parse(req.body);
+      
+      // Check if organization already exists
+      const existingOrg = await db.select()
+        .from(organizations)
+        .where(eq(organizations.name, orgData.name))
+        .limit(1);
+        
+      if (existingOrg.length > 0) {
+        return res.status(400).json({ message: "Organization with this name already exists" });
+      }
+      
+      // Create organization
+      const [newOrg] = await db.insert(organizations).values(orgData).returning();
+      
+      res.status(201).json(newOrg);
+    } catch (error) {
+      console.error("Error creating organization:", error);
+      res.status(500).json({ message: "Failed to create organization" });
+    }
+  });
+
+  app.patch("/api/organizations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const orgId = parseInt(req.params.id);
+      
+      // Check if user is admin
+      if (!req.user || req.user.role.id !== 1) {
+        return res.status(403).json({ message: "Forbidden: Only administrators can update organizations" });
+      }
+
+      // Update organization
+      const [updatedOrg] = await db.update(organizations)
+        .set(req.body)
+        .where(eq(organizations.id, orgId))
+        .returning();
+      
+      if (!updatedOrg) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+      
+      res.json(updatedOrg);
+    } catch (error) {
+      console.error("Error updating organization:", error);
+      res.status(500).json({ message: "Failed to update organization" });
+    }
+  });
+
+  app.delete("/api/organizations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const orgId = parseInt(req.params.id);
+      
+      // Check if user is admin
+      if (!req.user || req.user.role.id !== 1) {
+        return res.status(403).json({ message: "Forbidden: Only administrators can delete organizations" });
+      }
+
+      // Check if users exist in this organization
+      const usersInOrg = await db.select()
+        .from(users)
+        .where(eq(users.organizationId, orgId))
+        .limit(1);
+        
+      if (usersInOrg.length > 0) {
+        return res.status(400).json({ 
+          message: "Cannot delete organization with active users. Transfer or delete users first." 
+        });
+      }
+
+      // Delete organization
+      await db.delete(organizations).where(eq(organizations.id, orgId));
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting organization:", error);
+      res.status(500).json({ message: "Failed to delete organization" });
     }
   });
 
