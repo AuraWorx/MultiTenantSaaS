@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraAI piiGuard - Prompt Analysis</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!--
+    <header class="app-header">
+        <h1>AuraAI</h1>
+        <h2>piiGuard - Prompt Analysis Report</h2>
+    </header>
+-->
+
+    <div class="tab-container">
+        <button class="tab-button active" data-tab="analysis-tab">Analysis</button>
+        <button class="tab-button" data-tab="export-tab">Export Data</button>
+    </div>
+
+    <main>
+        <!-- Analysis Tab Content -->
+        <div id="analysis-tab" class="tab-content active">
+            <section class="charts-section">
+                 <h2>PII Analysis Charts</h2>
+                 <div class="chart-row">
+                     <!-- Chart 1: PII Classification (Pie) -->
+                     <div class="chart-container">
+                         <h3>PII Type Classification</h3>
+                         <div id="pii-chart-loading" class="loading">Loading Chart...</div>
+                         <canvas id="piiClassificationChart"></canvas>
+                         <div id="pii-chart-error" class="error-message"></div>
+                     </div>
+
+                     <!-- Chart 2: Total vs PII (Pie) -->
+                     <div class="chart-container">
+                         <h3>Total vs. PII Prompts</h3>
+                         <div id="total-pii-chart-loading" class="loading">Loading Chart...</div>
+                         <canvas id="totalPiiChart"></canvas>
+                         <div id="total-pii-chart-error" class="error-message"></div>
+                     </div>
+
+                     <!-- Chart 3: PII Timeline (Line) -->
+                     <div class="chart-container">
+                         <h3>PII Detected Over Last 7 Days</h3>
+                         <div id="timeline-chart-loading" class="loading">Loading Chart...</div>
+                         <canvas id="piiTimelineChart"></canvas>
+                         <div id="timeline-chart-error" class="error-message"></div>
+                     </div>
+                 </div>
+            </section>
+
+            <hr>
+
+            <section>
+                <h2>Entries with PII Detected</h2>
+                <div id="pii-data-loading" class="loading">Loading PII Table...</div>
+                <div class="table-container modern-table">
+                    <table id="pii-data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User ID</th>
+                                <th>PII Types Detected</th>
+                                <th>Log ID</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="pii-data-error" class="error-message"></div>
+            </section>
+
+            <hr>
+
+            <section>
+                <h2>All Log Entries (Paginated)</h2>
+                <div class="controls">
+                    <button id="prev-button" disabled>Previous</button>
+                    <span id="page-info">Page 1</span>
+                    <button id="next-button">Next</button>
+                </div>
+                <div id="all-data-loading" class="loading">Loading Table...</div>
+                <div class="table-container modern-table">
+                    <table id="all-data-table">
+                        <thead>
+                            <tr>
+                                <th>Log ID</th>
+                                <th>Timestamp</th>
+                                <th>User ID</th>
+                                <th>Has PII</th>
+                                <th>PII Types</th>
+                                <th>Length</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="all-data-error" class="error-message"></div>
+            </section>
+        </div>
+
+        <!-- Export Tab Content -->
+        <div id="export-tab" class="tab-content">
+            <section>
+                <h2>Export PII Data Report</h2>
+                <form id="export-form">
+                    <div class="form-group">
+                        <label for="start-date">Start Date:</label>
+                        <input type="date" id="start-date" name="start-date">
+                    </div>
+                    <div class="form-group">
+                        <label for="end-date">End Date:</label>
+                        <input type="date" id="end-date" name="end-date">
+                    </div>
+                     <div class="form-group">
+                        <label for="export-format">Format:</label>
+                        <select id="export-format" name="export-format">
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF (Preview)</option>
+                        </select>
+                    </div>
+                    <button type="button" id="export-button">Generate Report</button>
+                </form>
+                 <div id="export-status" class="status-message"></div>
+                 <div id="export-error" class="error-message"></div>
+            </section>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -24,6 +24,7 @@ export interface MeasureFeatures {
   piiLeakDetection: Feature;
   biasAnalysis: Feature;
   toxicityAnalysis: Feature;
+  chatGptPiiDetect: Feature;
 }
 
 export interface ManageFeatures {

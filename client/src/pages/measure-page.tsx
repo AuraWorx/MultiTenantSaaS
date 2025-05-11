@@ -7,6 +7,7 @@ import { AuraAIWizard } from '@/components/measure/aura-ai-wizard';
 import { PIILeakDetection } from '@/components/measure/pii-leak-detection';
 import { BiasAnalysis } from '@/components/measure/bias-analysis';
 import { ToxicityAnalysis } from '@/components/measure/toxicity-analysis';
+import { ChatGptPiiDetect } from '@/components/measure/chatgpt-pii-detect';
 import { MeasureFeatures } from '@/types';
 
 const measureFeatures: MeasureFeatures = {
@@ -34,6 +35,11 @@ const measureFeatures: MeasureFeatures = {
     id: 'toxicity-analysis',
     name: 'Toxicity Analysis',
     path: '/measure/toxicity-analysis',
+  },
+  chatGptPiiDetect: {
+    id: 'chatgpt-pii-detect',
+    name: 'ChatGPT PII Detect',
+    path: '/measure/chatgpt-pii-detect',
   },
 };
 
@@ -73,6 +79,7 @@ export default function MeasurePage() {
                   {currentTab === measureFeatures.piiLeakDetection.id && <PIILeakDetection />}
                   {currentTab === measureFeatures.biasAnalysis.id && <BiasAnalysis />}
                   {currentTab === measureFeatures.toxicityAnalysis.id && <ToxicityAnalysis />}
+                  {currentTab === measureFeatures.chatGptPiiDetect.id && <ChatGptPiiDetect />}
                 </>
               )}
             </div>
