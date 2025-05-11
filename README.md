@@ -20,6 +20,19 @@ A comprehensive multi-tenant SaaS platform for AI governance, following the "Map
 - [API Documentation](#api-documentation)
 - [Authentication and Authorization](#authentication-and-authorization)
 
+## Documentation
+
+Detailed documentation is available in the `docs` directory:
+
+- [Architecture Overview](docs/architecture.md) - High-level architecture and design decisions
+- [Database Schema](docs/database_schema.md) - Detailed database schema documentation
+- [API Reference](docs/api_reference.md) - Comprehensive API endpoint reference
+- [Frontend Architecture](docs/frontend_architecture.md) - Frontend component organization and patterns
+- [Development Guide](docs/development_guide.md) - Guide for local development setup
+- [User Guide](docs/user_guide.md) - End-user documentation for using the platform
+- [Security Guide](docs/security.md) - Security features and best practices
+- [Roadmap](docs/roadmap.md) - Planned features and future enhancements
+
 ## Overview
 
 The AI Governance Platform is designed to help organizations discover, assess, and manage their AI systems while ensuring compliance with regulatory requirements. The platform implements organization-based multi-tenancy with role-based access control, allowing teams to collaborate effectively on AI governance initiatives.
