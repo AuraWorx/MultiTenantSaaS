@@ -1,8 +1,10 @@
-const { Client } = require('pg');
-const { randomBytes, scryptSync } = require('crypto');
+import pg from 'pg';
+import { randomBytes, scryptSync } from 'crypto';
+
+const { Client } = pg;
 
 // Default connection string if not provided
-const DEFAULT_DB_URL = 'postgresql://postgres:postgres@localhost:5432/postgres';
+const DEFAULT_DB_URL = 'postgresql://postgres:postgres@localhost:5432/ai_governance';
 const connectionString = process.env.DATABASE_URL || DEFAULT_DB_URL;
 
 console.log(`Using database URL: ${connectionString}`);

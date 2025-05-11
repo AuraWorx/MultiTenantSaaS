@@ -8,7 +8,7 @@ if [ -z "$DATABASE_URL" ]; then
   echo "⚠️ DATABASE_URL not set. Using the default database URL."
   
   # Get database URL from environment or set a default for local development
-  export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+  export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ai_governance"
   
   echo "Using DATABASE_URL: $DATABASE_URL"
   echo "If this is incorrect, please set the DATABASE_URL environment variable before running this script."
@@ -29,6 +29,13 @@ echo "⏳ Running database seed script..."
 # Detect if running locally or on Replit
 if [ -z "$REPL_ID" ]; then
   echo "Running in local environment, using node with pg client..."
+  
+  # Check if pg module is installed
+  if ! npm list pg >/dev/null 2>&1; then
+    echo "Installing pg module temporarily..."
+    npm install --no-save pg
+  fi
+  
   node local-seed.js
 else
   echo "Running in Replit environment, using tsx with neon client..."
