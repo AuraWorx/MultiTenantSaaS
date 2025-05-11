@@ -33,11 +33,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const organizationId = user.organization?.id || user.organizationId;
 
-      // For now, we'll use hardcoded mock data for the dashboard stats since we're
-      // just creating placeholders for each section as mentioned in the requirements
-      const aiSystemsCount = 5;
-      const complianceIssuesCount = 3;
-      const openRisksCount = 2;
+      // Use static data for now to show the dashboard
+      const stats = {
+        aiSystemsCount: 5,
+        complianceIssuesCount: 3,
+        openRisksCount: 2
+      };
 
       // Get recent activities (mock data for now)
       const activities = [
@@ -65,11 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
 
       res.json({
-        stats: {
-          aiSystemsCount,
-          complianceIssuesCount,
-          openRisksCount
-        },
+        stats,
         activities
       });
     } catch (error) {
