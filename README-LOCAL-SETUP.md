@@ -10,15 +10,37 @@ This guide provides instructions for setting up the AuraAI Multi-tenant SaaS pla
 
 ## Database Setup
 
-1. Create a PostgreSQL database for the application.
+1. Create a PostgreSQL database for the application:
 
-2. Set up your environment variables - create a `.env` file in the root directory with the following:
+```bash
+# Login to PostgreSQL
+sudo -u postgres psql
+
+# Create the database
+CREATE DATABASE ai_governance;
+
+# Exit psql
+\q
+```
+
+2. Set up your environment variables - create a `.env` file in the root directory:
+
+```bash
+# Copy the example .env file
+cp .env.example .env
+```
+
+3. Edit the `.env` file to match your PostgreSQL connection details:
 
 ```
-DATABASE_URL=postgresql://username:password@localhost:5432/yourdatabase
+DATABASE_URL=postgresql://username:password@localhost:5432/ai_governance
 ```
 
-Replace `username`, `password`, and `yourdatabase` with your PostgreSQL connection details.
+Replace `username` and `password` with your PostgreSQL credentials. If you're using the default PostgreSQL setup, the connection string would be:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_governance
+```
 
 ## Installation Steps
 
@@ -47,8 +69,14 @@ npm run db:push
 ./seed-db.sh
 ```
 
+The script will:
+- Automatically detect if you're running in a local environment or on Replit
+- Use the appropriate database client (standard PostgreSQL locally, Neon serverless on Replit)
+- Install any missing dependencies if needed
+- Create database tables and populate them with sample data
+
 The seed script will populate your database with:
-- Organizations (Admin Organization and demo_org)
+- Organizations (Admin Organization and Finance Corp.)
 - Roles (Administrator, User, Analyst, Viewer)
 - Users (admin_user, demo_user, viewer_user)
 - AI Systems (Customer Support Chatbot, Fraud Detection System, HR Candidate Screening, etc.)
@@ -94,6 +122,37 @@ You can run the seed script with a custom database URL:
 
 ```bash
 DATABASE_URL=postgresql://custom_user:custom_pass@localhost:5432/custom_db ./seed-db.sh
+```
+
+### PostgreSQL Connection Options
+
+#### Local PostgreSQL
+
+For standard local PostgreSQL:
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_governance
+```
+
+#### Remote PostgreSQL
+
+For a remote PostgreSQL server:
+```
+DATABASE_URL=postgresql://username:password@remote-server-address:5432/ai_governance
+```
+
+#### PostgreSQL in Docker
+
+If you're running PostgreSQL in a Docker container:
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_governance
+```
+Make sure your Docker container is exposing port 5432 to your host machine.
+
+#### Cloud PostgreSQL (Non-Neon)
+
+For standard cloud PostgreSQL providers (like AWS RDS, DigitalOcean):
+```
+DATABASE_URL=postgresql://username:password@hostname.region.rds.amazonaws.com:5432/ai_governance
 ```
 
 ### Schema Changes

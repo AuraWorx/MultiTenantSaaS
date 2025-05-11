@@ -8,6 +8,7 @@ if [ -z "$DATABASE_URL" ]; then
   echo "⚠️ DATABASE_URL not set. Using the default database URL."
   
   # Get database URL from environment or set a default for local development
+  # For local PostgreSQL setup
   export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ai_governance"
   
   echo "Using DATABASE_URL: $DATABASE_URL"
