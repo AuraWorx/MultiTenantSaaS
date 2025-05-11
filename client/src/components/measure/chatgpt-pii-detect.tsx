@@ -1,4 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+// Add Chart.js global declaration to fix TypeScript errors
+declare global {
+  interface Window {
+    Chart: any;
+  }
+}
 import {
   Card,
   CardContent,
@@ -44,6 +50,15 @@ import { useToast } from '@/hooks/use-toast';
 const ALL_DATA_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics';
 const PII_DATA_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics/pii';
 const STATS_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics/stats';
+
+// Type definitions for Chart.js callbacks
+interface ChartContext {
+  label?: string;
+  parsed?: number;
+  dataset: {
+    data: number[];
+  };
+}
 
 // Type definitions
 interface PiiEntry {
@@ -244,7 +259,11 @@ export function ChatGptPiiDetect() {
     // Import ChartJS dynamically to avoid SSR issues
     const loadChart = async () => {
       try {
-        const dynamic = await import('chart.js/auto');
+        // Load Chart.js
+        await import('chart.js');
+        // Register all controllers, elements, scales and plugins
+        const { Chart, registerables } = await import('chart.js');
+        Chart.register(...registerables);
         
         // Now render the charts
         renderCharts();
@@ -292,18 +311,31 @@ export function ChatGptPiiDetect() {
     setCurrentPage(currentPage + 1);
   };
 
+  // Declare Chart at module level for TypeScript
+  let Chart: any;
+  
   // Render charts using ChartJS
   const renderCharts = () => {
-    // Only proceed if Chart.js is loaded (window.Chart exists)
-    if (typeof window === 'undefined' || !window.Chart) {
-      console.error('Chart.js not loaded');
+    // Only proceed if Chart.js is loaded and registered
+    if (typeof window === 'undefined') {
+      console.error('Running in SSR context');
       return;
     }
     
-    // PII Classification Chart
-    renderPiiClassificationChart();
-    renderTotalPiiChart();
-    renderTimelineChart();
+    // Import Chart from the module
+    import('chart.js').then(module => {
+      Chart = module.Chart;
+      
+      // PII Classification Chart
+      renderPiiClassificationChart();
+      renderTotalPiiChart();
+      renderTimelineChart();
+    }).catch(error => {
+      console.error('Error importing Chart.js:', error);
+      setPiiChartError('Failed to load chart library.');
+      setTotalPiiChartError('Failed to load chart library.');
+      setTimelineChartError('Failed to load chart library.');
+    });
   };
 
   // Render PII Classification Chart
@@ -357,7 +389,7 @@ export function ChatGptPiiDetect() {
     }
     
     // Create new chart
-    piiClassificationChartRef.current = new window.Chart(ctx, {
+    piiClassificationChartRef.current = new Chart(ctx, {
       type: 'pie',
       data: chartData,
       options: {
@@ -430,7 +462,7 @@ export function ChatGptPiiDetect() {
     }
     
     // Create new chart
-    totalPiiChartRef.current = new window.Chart(ctx, {
+    totalPiiChartRef.current = new Chart(ctx, {
       type: 'doughnut',
       data: chartData,
       options: {
@@ -511,7 +543,7 @@ export function ChatGptPiiDetect() {
     }
     
     // Create new chart
-    timelineChartRef.current = new window.Chart(ctx, {
+    timelineChartRef.current = new Chart(ctx, {
       type: 'line',
       data: chartData,
       options: {
