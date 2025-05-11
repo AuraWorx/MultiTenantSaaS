@@ -1,4 +1,4 @@
-import { db } from '../server/db';
+import { db, pool } from '../server/db';
 import { organizations, roles, users, aiSystems, riskItems, complianceIssues } from '../shared/schema';
 import { scrypt, randomBytes } from 'crypto';
 import { promisify } from 'util';
@@ -252,7 +252,7 @@ async function seed() {
     throw error;
   } finally {
     // Close the database connection
-    await db.pool.end();
+    await pool.end();
   }
 }
 
