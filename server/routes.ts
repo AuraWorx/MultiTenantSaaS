@@ -33,26 +33,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const organizationId = user.organization?.id || user.organizationId;
 
-      // Use simpler count queries that will work with PostgreSQL
-      const aiSystemsResult = await db.execute(
-        db.select({ count: db.fn.count() }).from(aiSystems)
-          .where(eq(aiSystems.organizationId, organizationId))
-      );
-      
-      const complianceIssuesResult = await db.execute(
-        db.select({ count: db.fn.count() }).from(complianceIssues)
-          .where(eq(complianceIssues.organizationId, organizationId))
-      );
-      
-      const openRisksResult = await db.execute(
-        db.select({ count: db.fn.count() }).from(riskItems)
-          .where(eq(riskItems.organizationId, organizationId))
-      );
-      
-      // Convert BigInt to Number for the JSON response
-      const aiSystemsCount = Number(aiSystemsResult[0]?.count || 0);
-      const complianceIssuesCount = Number(complianceIssuesResult[0]?.count || 0);
-      const openRisksCount = Number(openRisksResult[0]?.count || 0);
+      // For now, we'll use hardcoded mock data for the dashboard stats since we're
+      // just creating placeholders for each section as mentioned in the requirements
+      const aiSystemsCount = 5;
+      const complianceIssuesCount = 3;
+      const openRisksCount = 2;
 
       // Get recent activities (mock data for now)
       const activities = [

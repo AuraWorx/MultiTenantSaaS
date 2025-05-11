@@ -160,6 +160,36 @@ export default function UserManagementPage() {
                   />
                 </DialogContent>
               </Dialog>
+              
+              {/* Add Organization Dialog */}
+              <Dialog open={isAddOrgDialogOpen} onOpenChange={setIsAddOrgDialogOpen}>
+                <DialogContent className="sm:max-w-[525px]">
+                  <DialogHeader>
+                    <DialogTitle>Add new organization</DialogTitle>
+                  </DialogHeader>
+                  <OrganizationForm 
+                    onSuccess={() => setIsAddOrgDialogOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
+              
+              {/* Edit Organization Dialog */}
+              <Dialog open={isEditOrgDialogOpen} onOpenChange={setIsEditOrgDialogOpen}>
+                <DialogContent className="sm:max-w-[525px]">
+                  <DialogHeader>
+                    <DialogTitle>Edit organization</DialogTitle>
+                  </DialogHeader>
+                  {editingOrg && (
+                    <OrganizationForm 
+                      editingOrg={editingOrg}
+                      onSuccess={() => {
+                        setIsEditOrgDialogOpen(false);
+                        setEditingOrg(null);
+                      }}
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </main>
