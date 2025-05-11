@@ -26,6 +26,7 @@ Detailed documentation is available in the `docs` directory:
 
 - [Architecture Overview](docs/architecture.md) - High-level architecture and design decisions
 - [Database Schema](docs/database_schema.md) - Detailed database schema documentation
+- [Database Setup](docs/database_setup.md) - Guide for setting up and seeding the database
 - [API Reference](docs/api_reference.md) - Comprehensive API endpoint reference
 - [Frontend Architecture](docs/frontend_architecture.md) - Frontend component organization and patterns
 - [Development Guide](docs/development_guide.md) - Guide for local development setup
