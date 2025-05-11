@@ -5,6 +5,8 @@ import { FeatureTabs } from '@/components/layout/feature-tabs';
 import { ComplianceRules } from '@/components/measure/compliance-rules';
 import { AuraAIWizard } from '@/components/measure/aura-ai-wizard';
 import { PIILeakDetection } from '@/components/measure/pii-leak-detection';
+import { BiasAnalysis } from '@/components/measure/bias-analysis';
+import { ToxicityAnalysis } from '@/components/measure/toxicity-analysis';
 import { MeasureFeatures } from '@/types';
 
 const measureFeatures: MeasureFeatures = {
@@ -69,28 +71,8 @@ export default function MeasurePage() {
                   {currentTab === measureFeatures.complianceRules.id && <ComplianceRules />}
                   {currentTab === measureFeatures.auraAiWizard.id && <AuraAIWizard />}
                   {currentTab === measureFeatures.piiLeakDetection.id && <PIILeakDetection />}
-                  {currentTab === measureFeatures.biasAnalysis.id && (
-                    <div className="py-16">
-                      <div className="text-center">
-                        <svg className="mx-auto h-12 w-12 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <h3 className="mt-2 text-lg font-medium text-gray-900">Bias Analysis</h3>
-                        <p className="mt-1 text-sm text-gray-500">This feature is coming soon</p>
-                      </div>
-                    </div>
-                  )}
-                  {currentTab === measureFeatures.toxicityAnalysis.id && (
-                    <div className="py-16">
-                      <div className="text-center">
-                        <svg className="mx-auto h-12 w-12 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        <h3 className="mt-2 text-lg font-medium text-gray-900">Toxicity Analysis</h3>
-                        <p className="mt-1 text-sm text-gray-500">This feature is coming soon</p>
-                      </div>
-                    </div>
-                  )}
+                  {currentTab === measureFeatures.biasAnalysis.id && <BiasAnalysis />}
+                  {currentTab === measureFeatures.toxicityAnalysis.id && <ToxicityAnalysis />}
                 </>
               )}
             </div>
