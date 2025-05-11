@@ -5,9 +5,9 @@ set -e
 
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
-  echo "⚠️ DATABASE_URL not set. Using the default Replit database URL."
+  echo "⚠️ DATABASE_URL not set. Using the default database URL."
   
-  # Get Replit database URL from environment or set a default for local development
+  # Get database URL from environment or set a default for local development
   export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
   
   echo "Using DATABASE_URL: $DATABASE_URL"
@@ -25,7 +25,15 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 
 echo "⏳ Running database seed script..."
-npx tsx scripts/seed.ts
+
+# Detect if running locally or on Replit
+if [ -z "$REPL_ID" ]; then
+  echo "Running in local environment, using node with pg client..."
+  node local-seed.js
+else
+  echo "Running in Replit environment, using tsx with neon client..."
+  npx tsx scripts/seed.ts
+fi
 
 echo "✅ Seed script execution completed."
 
