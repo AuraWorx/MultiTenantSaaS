@@ -6,6 +6,8 @@ This document describes the database schema used by the AI Governance Platform. 
 
 The database schema is designed to support a multi-tenant SaaS application with organization-based access control. Each record is associated with an organization, implementing data isolation at the database level.
 
+The schema has been expanded to include GitHub repository scanning capabilities with confidence-based AI detection and bias analysis functionality.
+
 ## Table Structure
 
 ### Organizations
@@ -278,6 +280,96 @@ The database schema implements multi-tenancy through data isolation at the datab
 3. All queries include organization filtering to ensure users can only access data within their organization.
 
 This approach ensures robust data isolation between organizations while using a single database instance.
+
+## GitHub Repository Scanning
+
+The platform includes functionality to scan GitHub repositories for AI usage. This is implemented through three tables:
+
+### GitHub Scan Configurations
+
+Stores configuration settings for scanning GitHub organizations.
+
+```sql
+CREATE TABLE github_scan_configs (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  github_org_name VARCHAR(255) NOT NULL,
+  api_key TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  last_scan_at TIMESTAMP WITH TIME ZONE,
+  status VARCHAR(50) DEFAULT 'idle'
+);
+```
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| id | SERIAL | Primary key, unique identifier for the scan configuration |
+| organization_id | INTEGER | Foreign key to the organization this scan belongs to |
+| github_org_name | VARCHAR(255) | Name of the GitHub organization to scan |
+| api_key | TEXT | GitHub API key for authentication with private repositories |
+| created_at | TIMESTAMP | When the configuration was created |
+| last_scan_at | TIMESTAMP | When the last scan was completed |
+| status | VARCHAR(50) | Current status of the scan (idle, scanning, completed, failed) |
+
+### GitHub Scan Results
+
+Stores individual repository scan results from GitHub organization scans.
+
+```sql
+CREATE TABLE github_scan_results (
+  id SERIAL PRIMARY KEY,
+  scan_config_id INTEGER NOT NULL REFERENCES github_scan_configs(id),
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  repository_name VARCHAR(255) NOT NULL,
+  repository_url TEXT NOT NULL,
+  has_ai_usage BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_libraries TEXT[] NOT NULL DEFAULT '{}',
+  ai_frameworks TEXT[] NOT NULL DEFAULT '{}',
+  scan_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  added_to_risk BOOLEAN NOT NULL DEFAULT FALSE,
+  confidence_score INTEGER,
+  detection_type TEXT
+);
+```
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| id | SERIAL | Primary key, unique identifier for the scan result |
+| scan_config_id | INTEGER | Foreign key to the scan configuration |
+| organization_id | INTEGER | Foreign key to the organization this result belongs to |
+| repository_name | VARCHAR(255) | Name of the GitHub repository |
+| repository_url | TEXT | URL of the GitHub repository |
+| has_ai_usage | BOOLEAN | Whether AI usage was detected in the repository |
+| ai_libraries | TEXT[] | Array of AI libraries detected in the repository |
+| ai_frameworks | TEXT[] | Array of AI frameworks detected in the repository |
+| scan_date | TIMESTAMP | When the scan was performed |
+| added_to_risk | BOOLEAN | Whether this repository has been added to the risk register |
+| confidence_score | INTEGER | Confidence score for AI detection (0-100) |
+| detection_type | TEXT | Type of detection (e.g., "Dependency", "Model File") |
+
+### GitHub Scan Summaries
+
+Stores summary information for completed GitHub organization scans.
+
+```sql
+CREATE TABLE github_scan_summaries (
+  id SERIAL PRIMARY KEY,
+  scan_config_id INTEGER NOT NULL REFERENCES github_scan_configs(id),
+  organization_id INTEGER NOT NULL REFERENCES organizations(id),
+  total_repositories INTEGER NOT NULL,
+  repositories_with_ai INTEGER NOT NULL,
+  scan_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+```
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| id | SERIAL | Primary key, unique identifier for the scan summary |
+| scan_config_id | INTEGER | Foreign key to the scan configuration |
+| organization_id | INTEGER | Foreign key to the organization this summary belongs to |
+| total_repositories | INTEGER | Total number of repositories scanned |
+| repositories_with_ai | INTEGER | Number of repositories where AI usage was detected |
+| scan_date | TIMESTAMP | When the scan was completed |
 
 ## Schema Evolution
 
