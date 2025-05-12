@@ -483,23 +483,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
 
       // Get actual counts from database
-      // Count AI Systems - get from GitHub scan summaries
+      // Count AI Systems - count repos with AI usage from scan results
       const aiSystemsCount = await db.select({ count: sql`count(*)` })
-        .from(githubScanSummaries)
-        .where(eq(githubScanSummaries.organization_id, organizationId))
+        .from(githubScanResults)
+        .where(and(
+          eq(githubScanResults.organization_id, organizationId),
+          eq(githubScanResults.has_ai_usage, true)
+        ))
         .then(result => Number(result[0]?.count || 0));
 
       // Count compliance issues
       const complianceIssuesCount = await db.select({ count: sql`count(*)` })
         .from(complianceIssues)
-        .where(eq(complianceIssues.organization_id, organizationId))
+        .where(eq(complianceIssues.organizationId, organizationId))
         .then(result => Number(result[0]?.count || 0));
 
       // Count open risks
       const openRisksCount = await db.select({ count: sql`count(*)` })
         .from(riskItems)
         .where(and(
-          eq(riskItems.organization_id, organizationId),
+          eq(riskItems.organizationId, organizationId),
           eq(riskItems.status, 'open')
         ))
         .then(result => Number(result[0]?.count || 0));
@@ -512,25 +515,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get recent activities (from GitHub scan results, risks, and compliance issues)
       // First get the latest scan results
-      const recentScans = await db.select({
-        id: githubScanResults.id,
-        repoName: githubScanResults.repository_name,
-        createdAt: githubScanResults.created_at,
-      })
-      .from(githubScanResults)
-      .where(eq(githubScanResults.organization_id, organizationId))
-      .orderBy(desc(githubScanResults.created_at))
-      .limit(5);
+      const recentScans = await db
+        .select({
+          id: githubScanResults.id,
+          repoName: githubScanResults.repository_name, 
+          createdAt: githubScanResults.scan_date,
+        })
+        .from(githubScanResults)
+        .where(eq(githubScanResults.organization_id, organizationId))
+        .orderBy(desc(githubScanResults.scan_date))
+        .limit(5);
       
       // Then get recent risk items
       const recentRisks = await db.select({
         id: riskItems.id,
         title: riskItems.title,
-        createdAt: riskItems.created_at,
+        createdAt: riskItems.createdAt,
       })
       .from(riskItems)
-      .where(eq(riskItems.organization_id, organizationId))
-      .orderBy(desc(riskItems.created_at))
+      .where(eq(riskItems.organizationId, organizationId))
+      .orderBy(desc(riskItems.createdAt))
       .limit(5);
       
       // Format activities from the combined data
@@ -550,7 +554,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: risk.createdAt
         }))
       ]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .sort((a, b) => {
+        // Handle null timestamps
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        
+        const dateA = a.timestamp instanceof Date ? a.timestamp : new Date(String(a.timestamp));
+        const dateB = b.timestamp instanceof Date ? b.timestamp : new Date(String(b.timestamp));
+        return dateB.getTime() - dateA.getTime();
+      })
       .slice(0, 5);
 
       res.json({
