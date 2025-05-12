@@ -14,11 +14,12 @@ import MeasurePage from "./pages/measure-page";
 import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
 import AdminPage from "./pages/admin-page";
+import RiskRegisterPage from "./pages/risk-register-page";
 
 // Conditionally render the footer based on user permissions
 function ConditionalFooter() {
   const { user } = useAuth();
-  const isAdmin = user?.role?.permissions?.includes("admin:all");
+  const isAdmin = user?.role?.permissions?.includes("admin");
   
   // Only show footer for admin users
   if (isAdmin) {
@@ -36,6 +37,7 @@ function Router() {
       <ProtectedRoute path="/map" component={MapPage} />
       <ProtectedRoute path="/measure" component={MeasurePage} />
       <ProtectedRoute path="/manage" component={ManagePage} />
+      <ProtectedRoute path="/risk-register" component={RiskRegisterPage} />
       <ProtectedRoute path="/users" component={UserManagementPage} />
       <ProtectedRoute path="/admin" component={AdminPage} />
       <Route component={NotFound} />

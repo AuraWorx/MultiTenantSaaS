@@ -51,7 +51,7 @@ export function Sidebar() {
   ];
 
   // Only show admin-specific menu items for users with admin permissions
-  if (user?.role.permissions?.includes('admin:all')) {
+  if (user?.role.permissions?.includes('admin') || user?.role.permissions?.includes('manage_users') || user?.role.permissions?.includes('manage_organizations')) {
     menuItems.push({ 
       path: '/users', 
       label: 'User Management', 

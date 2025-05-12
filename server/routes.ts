@@ -993,71 +993,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "resultId is required" });
       }
       
-      const organizationId = req.user.organization?.id || req.user.organizationId;
+      // Get organization ID from user object
+      const organizationId = req.user?.organization?.[0] || 1;
       
       // Get the scan result
-      const [result] = await db.select()
+      const [scanResult] = await db.select()
         .from(githubScanResults)
-        .where(and(
-          eq(githubScanResults.id, resultId),
-          eq(githubScanResults.organization_id, organizationId)
-        ));
+        .where(eq(githubScanResults.id, resultId));
       
-      if (!result) {
+      if (!scanResult) {
         return res.status(404).json({ message: "Scan result not found" });
       }
       
-      if (result.added_to_risk) {
+      if (scanResult.added_to_risk) {
         return res.status(400).json({ message: "This result has already been added to the risk register" });
       }
       
-      // First, check if we have any AI system available for this organization
-      const aiSystemsList = await db.select()
-        .from(aiSystems)
-        .where(eq(aiSystems.organizationId, organizationId))
-        .limit(1);
-
-      // If no AI system exists, create a default one
-      let aiSystemId = 1; // Default
-      if (aiSystemsList.length === 0) {
-        const [newSystem] = await db.insert(aiSystems)
-          .values({
-            name: 'GitHub Repository AI System',
-            description: 'Automatically created system for tracking AI in repositories',
-            type: 'Repository',
-            location: 'Internal',
-            organizationId: organizationId,
-            createdById: req.user?.id || 1,
-          })
-          .returning();
+      // Create a default AI system if none exists for the organization
+      const systemName = 'GitHub Repository Scanner';
+      
+      // Insert a new AI system or use an existing one
+      let systemId = 1;
+      
+      try {
+        // Try to get an existing AI system
+        const systems = await db
+          .select()
+          .from(aiSystems)
+          .where(eq(aiSystems.organizationId, organizationId));
+        
+        if (systems && systems.length > 0) {
+          systemId = systems[0].id;
+        } else {
+          // Create a new AI system
+          const [newSystem] = await db
+            .insert(aiSystems)
+            .values({
+              name: systemName,
+              description: 'System for tracking AI usage in repositories',
+              type: 'Scanner',
+              location: 'Internal',
+              organizationId: organizationId,
+              createdById: req.user?.id || 1,
+            })
+            .returning();
           
-        aiSystemId = newSystem.id;
-      } else {
-        aiSystemId = aiSystemsList[0].id;
+          systemId = newSystem.id;
+        }
+      } catch (err) {
+        console.error("Error managing AI systems:", err);
+        // Use default system ID if there's an error
       }
-
+      
       // Create a risk item
-      const [riskItem] = await db.insert(riskItems)
+      const [riskItem] = await db
+        .insert(riskItems)
         .values({
-          title: `AI Usage in ${result.repository_name}`,
-          description: `AI libraries detected: ${result.ai_libraries ? result.ai_libraries.join(', ') : 'None'}. Repository URL: ${result.repository_url}`,
+          title: `AI Usage in ${scanResult.repository_name}`,
+          description: `AI usage detected in repository: ${scanResult.repository_name}. Libraries: ${scanResult.ai_libraries ? scanResult.ai_libraries.join(', ') : 'None'}. URL: ${scanResult.repository_url}`,
           severity: "medium",
           status: "open",
-          aiSystemId: aiSystemId,
+          aiSystemId: systemId,
           organizationId: organizationId,
           createdById: req.user?.id || 1,
         })
         .returning();
       
       // Mark the result as added to risk
-      await db.update(githubScanResults)
+      await db
+        .update(githubScanResults)
         .set({ added_to_risk: true })
         .where(eq(githubScanResults.id, resultId));
       
-      res.json({ message: "Added to risk register successfully", riskItemId: riskItem.id });
+      res.json({ 
+        message: "Added to risk register successfully", 
+        riskItemId: riskItem.id 
+      });
     } catch (error) {
       console.error("Error adding scan result to risk register:", error);
-      res.status(500).json({ message: "Failed to add to risk register", error: error.message });
+      res.status(500).json({ 
+        message: "Failed to add to risk register", 
+        error: error.message 
+      });
     }
   });
 
