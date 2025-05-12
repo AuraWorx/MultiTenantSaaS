@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { FeatureTabs } from '@/components/layout/feature-tabs';
+import { FrontierModelAlerts } from '@/components/manage/frontier-model-alerts';
 import { ManageFeatures } from '@/types';
 
 const manageFeatures: ManageFeatures = {
@@ -50,12 +51,7 @@ export default function ManagePage() {
             ) : (
               <>
                 {currentTab === manageFeatures.frontierModelAlerts.id && (
-                  <div className="text-center py-8">
-                    <h2 className="text-xl font-semibold">Frontier Model Alerts</h2>
-                    <p className="mt-2 text-gray-600">
-                      Set up alerts for new frontier models and track their adoption in your organization.
-                    </p>
-                  </div>
+                  <FrontierModelAlerts />
                 )}
                 {currentTab === manageFeatures.riskRegister.id && (
                   <div className="text-center py-8">
