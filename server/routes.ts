@@ -1972,7 +1972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/frontier-model-alerts/:id", isAuthenticated, async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
-      const orgId = req.user.organization[0];
+      const orgId = req.user.organization.id;
       
       // Validate data
       const alertData = insertFrontierModelAlertSchema.partial().parse(req.body);
@@ -1982,7 +1982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(frontierModelAlerts)
         .where(and(
           eq(frontierModelAlerts.id, alertId),
-          eq(frontierModelAlerts.organization_id, orgId)
+          eq(frontierModelAlerts.organizationId, orgId)
         ));
       
       if (!alert) {

@@ -29,9 +29,9 @@ export function FrontierModelAlerts() {
   // Form states
   const [alertFormData, setAlertFormData] = useState({
     name: '',
-    alertTypes: ['security'],
-    frontierModelId: 0,
-    alertFrequency: 'daily'
+    alert_type: 'security',
+    frontier_model_id: 0,
+    alert_frequency: 'daily'
   });
   
   const [modelFormData, setModelFormData] = useState({
@@ -359,11 +359,11 @@ export function FrontierModelAlerts() {
                     <TableCell className="font-medium">{alert.name}</TableCell>
                     <TableCell>{alert.model?.name || 'Unknown Model'}</TableCell>
                     <TableCell>
-                      <Badge variant={alert.alertTypes?.includes('security') ? 'destructive' : 'secondary'}>
-                        {alert.alertTypes?.includes('security') ? 'Security' : 'Feature'}
+                      <Badge variant={alert.alert_type === 'security' ? 'destructive' : 'secondary'}>
+                        {alert.alert_type === 'security' ? 'Security' : 'Feature'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{new Date(alert.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(alert.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
