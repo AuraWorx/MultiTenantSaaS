@@ -52,6 +52,8 @@ interface GithubScanResult {
   ai_frameworks: string[];
   scan_date: string;
   added_to_risk: boolean;
+  confidence_score?: number; // Confidence score for AI detection (0.0-1.0)
+  detection_type?: string;   // Type of detection (e.g., "Dependency", "Model File")
 }
 
 interface GithubScanSummary {
@@ -245,7 +247,7 @@ export function AIUsageFinder() {
   const chartData = getChartData();
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <Card>
         <CardHeader>
           <CardTitle>AI Usage Finder</CardTitle>
@@ -407,6 +409,7 @@ export function AIUsageFinder() {
                           <TableHead>Repository</TableHead>
                           <TableHead>AI Usage</TableHead>
                           <TableHead>Libraries Detected</TableHead>
+                          <TableHead>Confidence</TableHead>
                           <TableHead>Scan Date</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -442,9 +445,17 @@ export function AIUsageFinder() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <div className="max-w-[200px] truncate">
+                              <div className="max-w-[200px]">
                                 {result.ai_libraries && result.ai_libraries.length > 0 
-                                  ? result.ai_libraries.join(', ')
+                                  ? (
+                                    <div className="space-y-1">
+                                      {result.ai_libraries.map((lib, idx) => (
+                                        <span key={idx} className="inline-flex items-center mr-1 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                          {lib}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )
                                   : 'None detected'}
                               </div>
                             </TableCell>
