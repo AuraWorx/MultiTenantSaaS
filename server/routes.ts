@@ -60,11 +60,18 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
     
     // Setup GitHub API client
     const apiUrl = `https://api.github.com`;
-    const headers = {
-      'Authorization': `token ${config.api_key}`,
+    const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
       'User-Agent': 'AIGovernancePlatform'
     };
+    
+    // Add authorization header if API key is provided
+    if (config.api_key) {
+      headers['Authorization'] = `token ${config.api_key}`;
+      console.log('Using GitHub API key for authenticated access');
+    } else {
+      console.log('No GitHub API key provided, using unauthenticated access (rate limits apply)');
+    }
     
     let repositories: any[] = [];
     
@@ -234,40 +241,63 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
                 const fileName = item.name.toLowerCase();
                 const filePath = item.path;
                 
-                // Check for model files
+                // Check for model files - higher confidence detection
                 if (AI_FILE_PATTERNS.some(pattern => pattern.test(fileName))) {
                   aiSignals.push({
                     type: 'Model File',
                     path: filePath,
                     details: `Model file detected: ${fileName}`,
-                    confidence: 0.8
+                    confidence: 0.9 // High confidence for model files
                   });
-                  
-                  // For Jupyter notebooks, try to look at content
-                  if (fileName.endsWith('.ipynb')) {
-                    try {
-                      const notebookResponse = await axios.get(item.download_url, { headers });
-                      const notebookContent = JSON.stringify(notebookResponse.data);
-                      
-                      // Check for AI imports
-                      for (const lib of AI_LIBRARIES) {
-                        if (notebookContent.toLowerCase().includes(`import ${lib.toLowerCase()}`) ||
-                            notebookContent.toLowerCase().includes(`from ${lib.toLowerCase()} import`)) {
-                          if (!aiLibrariesFound.includes(lib)) {
-                            aiLibrariesFound.push(lib);
-                          }
-                          
-                          aiSignals.push({
-                            type: 'Notebook Import',
-                            path: filePath,
-                            details: `AI library import: ${lib}`,
-                            confidence: 0.95
-                          });
-                        }
-                      }
-                    } catch (notebookError) {
-                      // Skip notebook content analysis on error
+                }
+                
+                // Check for config files that might indicate AI usage
+                if (fileName === '.env' || fileName.includes('config') || fileName.includes('settings')) {
+                  try {
+                    // For smaller text files, we can check content for API keys
+                    const fileResponse = await axios.get(item.download_url, { headers });
+                    const fileContent = fileResponse.data.toString();
+                    
+                    if (fileContent.includes('OPENAI_API') || 
+                        fileContent.includes('HUGGINGFACE_API') || 
+                        fileContent.includes('GPT_') || 
+                        fileContent.includes('AI_KEY')) {
+                      aiSignals.push({
+                        type: 'API Configuration',
+                        path: filePath,
+                        details: 'AI API configuration detected',
+                        confidence: 0.85
+                      });
                     }
+                  } catch (fileError) {
+                    // Couldn't read file content, continue
+                  }
+                }
+                
+                // For Jupyter notebooks, try to look at content
+                if (fileName.endsWith('.ipynb')) {
+                  try {
+                    const notebookResponse = await axios.get(item.download_url, { headers });
+                    const notebookContent = JSON.stringify(notebookResponse.data);
+                    
+                    // Check for AI imports
+                    for (const lib of AI_LIBRARIES) {
+                      if (notebookContent.toLowerCase().includes(`import ${lib.toLowerCase()}`) ||
+                          notebookContent.toLowerCase().includes(`from ${lib.toLowerCase()} import`)) {
+                        if (!aiLibrariesFound.includes(lib)) {
+                          aiLibrariesFound.push(lib);
+                        }
+                        
+                        aiSignals.push({
+                          type: 'Notebook Import',
+                          path: filePath,
+                          details: `AI library import: ${lib}`,
+                          confidence: 0.95
+                        });
+                      }
+                    }
+                  } catch (notebookError) {
+                    // Skip notebook content analysis on error
                   }
                 }
               } else if (item.type === 'dir') {
