@@ -167,15 +167,87 @@ export function BiasAnalysis() {
     queryFn: getQueryFn({ on401: 'throw' })
   });
   
-  // Handle file upload
+  // Handle file upload with validation
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setFileName(file.name);
       
+      // Validate file extension first
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (selectedDataSource === 'json' && fileExtension !== 'json') {
+        toast({
+          title: 'Invalid file format',
+          description: 'Please upload a JSON file with .json extension',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        setFileName('');
+        setFileData('');
+        return;
+      }
+      
+      if (selectedDataSource === 'csv' && fileExtension !== 'csv') {
+        toast({
+          title: 'Invalid file format',
+          description: 'Please upload a CSV file with .csv extension',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        setFileName('');
+        setFileData('');
+        return;
+      }
+      
       const reader = new FileReader();
+      
       reader.onload = (event) => {
-        setFileData(event.target?.result as string);
+        const content = event.target?.result as string;
+        
+        // Check if the file is actually HTML instead of JSON/CSV
+        if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
+          toast({
+            title: 'Invalid file content',
+            description: 'The file appears to be HTML, not a valid ' + selectedDataSource.toUpperCase() + ' file',
+            variant: 'destructive'
+          });
+          e.target.value = '';
+          setFileName('');
+          setFileData('');
+          return;
+        }
+        
+        // Additional validation for JSON files
+        if (selectedDataSource === 'json') {
+          try {
+            JSON.parse(content);
+          } catch (error) {
+            toast({
+              title: 'Invalid JSON',
+              description: 'The file does not contain valid JSON data',
+              variant: 'destructive'
+            });
+            e.target.value = '';
+            setFileName('');
+            setFileData('');
+            return;
+          }
+        }
+        
+        // If it passes all validation, set the file data
+        setFileData(content);
+      };
+      
+      reader.onerror = () => {
+        toast({
+          title: 'Error reading file',
+          description: 'Failed to read the file content',
+          variant: 'destructive'
+        });
+        e.target.value = '';
+        setFileName('');
+        setFileData('');
       };
       
       reader.readAsText(file);
