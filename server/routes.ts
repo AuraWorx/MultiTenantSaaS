@@ -17,6 +17,9 @@ import {
   githubScanSummaries,
   biasAnalysisScans,
   biasAnalysisResults,
+  frontierModels,
+  frontierModelAlerts,
+  frontierModelUpdates,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
@@ -25,7 +28,10 @@ import {
   insertComplianceIssueSchema,
   insertGithubScanConfigSchema,
   insertBiasAnalysisScanSchema,
-  insertBiasAnalysisResultSchema
+  insertBiasAnalysisResultSchema,
+  insertFrontierModelSchema,
+  insertFrontierModelAlertSchema,
+  insertFrontierModelUpdateSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
 
@@ -1532,6 +1538,324 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     return results;
   }
+
+  // =================== Frontier Model Alert API Routes ===================
+  
+  // Get all frontier models
+  app.get("/api/frontier-models", isAuthenticated, async (req, res) => {
+    try {
+      // Regular users can see all frontier models
+      const models = await db.query.frontierModels.findMany({
+        with: {
+          organization: true,
+          createdBy: {
+            columns: {
+              id: true,
+              username: true,
+              first_name: true,
+              last_name: true
+            }
+          }
+        },
+        orderBy: [desc(frontierModels.created_at)]
+      });
+      
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching frontier models:", error);
+      res.status(500).json({ message: "Failed to fetch frontier models" });
+    }
+  });
+
+  // Create frontier model (admin org only)
+  app.post("/api/frontier-models", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user is from admin org and has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Only admin users can create frontier models" });
+      }
+
+      // Validate data
+      const modelData = insertFrontierModelSchema.parse(req.body);
+      
+      // Add created_by_id and organization_id
+      const orgId = req.user.organization[0];
+      const createdById = req.user.id;
+      
+      // Create frontier model
+      const [newModel] = await db.insert(frontierModels)
+        .values({
+          ...modelData,
+          created_by_id: createdById,
+          organization_id: orgId
+        })
+        .returning();
+      
+      res.status(201).json(newModel);
+    } catch (error) {
+      console.error("Error creating frontier model:", error);
+      res.status(500).json({ message: "Failed to create frontier model" });
+    }
+  });
+
+  // Get a specific frontier model
+  app.get("/api/frontier-models/:id", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.id);
+      
+      const [model] = await db.select()
+        .from(frontierModels)
+        .where(eq(frontierModels.id, modelId));
+      
+      if (!model) {
+        return res.status(404).json({ message: "Frontier model not found" });
+      }
+      
+      res.json(model);
+    } catch (error) {
+      console.error("Error fetching frontier model:", error);
+      res.status(500).json({ message: "Failed to fetch frontier model" });
+    }
+  });
+
+  // Update a frontier model (admin org only)
+  app.patch("/api/frontier-models/:id", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.id);
+      
+      // Check if user is from admin org and has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Only admin users can update frontier models" });
+      }
+      
+      // Validate data
+      const modelData = insertFrontierModelSchema.partial().parse(req.body);
+      
+      // Update model
+      const [updatedModel] = await db.update(frontierModels)
+        .set(modelData)
+        .where(eq(frontierModels.id, modelId))
+        .returning();
+      
+      if (!updatedModel) {
+        return res.status(404).json({ message: "Frontier model not found" });
+      }
+      
+      res.json(updatedModel);
+    } catch (error) {
+      console.error("Error updating frontier model:", error);
+      res.status(500).json({ message: "Failed to update frontier model" });
+    }
+  });
+
+  // Delete a frontier model (admin org only)
+  app.delete("/api/frontier-models/:id", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.id);
+      
+      // Check if user is from admin org and has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Only admin users can delete frontier models" });
+      }
+      
+      // Delete model
+      await db.delete(frontierModels)
+        .where(eq(frontierModels.id, modelId));
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting frontier model:", error);
+      res.status(500).json({ message: "Failed to delete frontier model" });
+    }
+  });
+
+  // =================== Frontier Model Alert API Routes ===================
+  
+  // Get all alerts for a user's organization
+  app.get("/api/frontier-model-alerts", isAuthenticated, async (req, res) => {
+    try {
+      const orgId = req.user.organization[0];
+      
+      const alerts = await db.query.frontierModelAlerts.findMany({
+        where: eq(frontierModelAlerts.organization_id, orgId),
+        with: {
+          model: true,
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              first_name: true,
+              last_name: true
+            }
+          }
+        },
+        orderBy: [desc(frontierModelAlerts.created_at)]
+      });
+      
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching frontier model alerts:", error);
+      res.status(500).json({ message: "Failed to fetch frontier model alerts" });
+    }
+  });
+
+  // Create a frontier model alert
+  app.post("/api/frontier-model-alerts", isAuthenticated, async (req, res) => {
+    try {
+      // Validate data
+      const alertData = insertFrontierModelAlertSchema.parse(req.body);
+      
+      // Add user_id and organization_id
+      const orgId = req.user.organization[0];
+      const userId = req.user.id;
+      
+      // Create alert
+      const [newAlert] = await db.insert(frontierModelAlerts)
+        .values({
+          ...alertData,
+          user_id: userId,
+          organization_id: orgId
+        })
+        .returning();
+      
+      res.status(201).json(newAlert);
+    } catch (error) {
+      console.error("Error creating frontier model alert:", error);
+      res.status(500).json({ message: "Failed to create frontier model alert" });
+    }
+  });
+
+  // Update a frontier model alert
+  app.patch("/api/frontier-model-alerts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const orgId = req.user.organization[0];
+      
+      // Validate data
+      const alertData = insertFrontierModelAlertSchema.partial().parse(req.body);
+      
+      // Ensure user can only update their organization's alerts
+      const [alert] = await db.select()
+        .from(frontierModelAlerts)
+        .where(and(
+          eq(frontierModelAlerts.id, alertId),
+          eq(frontierModelAlerts.organization_id, orgId)
+        ));
+      
+      if (!alert) {
+        return res.status(404).json({ message: "Alert not found or you don't have permission to update it" });
+      }
+      
+      // Update alert
+      const [updatedAlert] = await db.update(frontierModelAlerts)
+        .set(alertData)
+        .where(eq(frontierModelAlerts.id, alertId))
+        .returning();
+      
+      res.json(updatedAlert);
+    } catch (error) {
+      console.error("Error updating frontier model alert:", error);
+      res.status(500).json({ message: "Failed to update frontier model alert" });
+    }
+  });
+
+  // Delete a frontier model alert
+  app.delete("/api/frontier-model-alerts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const orgId = req.user.organization[0];
+      
+      // Ensure user can only delete their organization's alerts
+      const [alert] = await db.select()
+        .from(frontierModelAlerts)
+        .where(and(
+          eq(frontierModelAlerts.id, alertId),
+          eq(frontierModelAlerts.organization_id, orgId)
+        ));
+      
+      if (!alert) {
+        return res.status(404).json({ message: "Alert not found or you don't have permission to delete it" });
+      }
+      
+      // Delete alert
+      await db.delete(frontierModelAlerts)
+        .where(eq(frontierModelAlerts.id, alertId));
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting frontier model alert:", error);
+      res.status(500).json({ message: "Failed to delete frontier model alert" });
+    }
+  });
+
+  // =================== Frontier Model Updates API Routes ===================
+  
+  // Get all updates for a specific frontier model
+  app.get("/api/frontier-model-updates/:modelId", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.modelId);
+      
+      const updates = await db.select()
+        .from(frontierModelUpdates)
+        .where(eq(frontierModelUpdates.frontier_model_id, modelId))
+        .orderBy(desc(frontierModelUpdates.update_date));
+      
+      res.json(updates);
+    } catch (error) {
+      console.error("Error fetching frontier model updates:", error);
+      res.status(500).json({ message: "Failed to fetch frontier model updates" });
+    }
+  });
+
+  // This endpoint would be called by a scheduled job to scrape and update frontier model information
+  app.post("/api/frontier-model-updates/scrape/:modelId", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.modelId);
+      
+      // Check if user is from admin org and has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Only admin users can trigger update scraping" });
+      }
+      
+      // Get the frontier model
+      const [model] = await db.select()
+        .from(frontierModels)
+        .where(eq(frontierModels.id, modelId));
+      
+      if (!model) {
+        return res.status(404).json({ message: "Frontier model not found" });
+      }
+      
+      // This would call a function to scrape updates for the given model
+      // For now, let's just add a mock update to demonstrate the functionality
+      const updates = [
+        {
+          frontier_model_id: modelId,
+          title: "Security Update: Vulnerability Patched",
+          description: "A critical security vulnerability has been addressed in the latest update.",
+          update_type: "security",
+          source_url: "https://example.com/security-update",
+          update_date: new Date()
+        },
+        {
+          frontier_model_id: modelId,
+          title: "New Feature: Improved Context Window",
+          description: "The model now supports a larger context window for better comprehension of lengthy inputs.",
+          update_type: "feature",
+          source_url: "https://example.com/feature-update",
+          update_date: new Date()
+        }
+      ];
+      
+      // Insert the mock updates
+      await db.insert(frontierModelUpdates).values(updates);
+      
+      res.status(201).json({ message: "Model updates scraped and stored", count: updates.length });
+    } catch (error) {
+      console.error("Error scraping frontier model updates:", error);
+      res.status(500).json({ message: "Failed to scrape frontier model updates" });
+    }
+  });
 
   const httpServer = createServer(app);
 
