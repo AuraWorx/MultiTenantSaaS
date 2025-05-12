@@ -569,8 +569,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -595,8 +595,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -738,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/admins", isAuthenticated, async (req, res) => {
     try {
       // Check if user has admin permissions
-      if (!req.user?.role?.permissions?.includes('admin:all')) {
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden: Insufficient permissions" });
       }
 
