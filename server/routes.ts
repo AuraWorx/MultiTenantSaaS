@@ -34,8 +34,25 @@ const AI_LIBRARIES = [
   'autodl', 'autogpt', 'mlflow', 'fastai', 'spacy', 'nltk', 'gensim'
 ];
 
+// File patterns that indicate AI/ML model files
+const AI_FILE_PATTERNS = [
+  /\.h5$/, /\.pkl$/, /\.pt$/, /\.onnx$/, /\.pb$/,
+  /_model\..+$/, /\.safetensors$/, /\.joblib$/,
+  /\.ipynb$/ // Jupyter notebooks often contain AI/ML code
+];
+
+// Folder patterns that suggest AI/ML work
+const AI_FOLDER_PATTERNS = [
+  /models\//, /ai\//, /ml\//, /llm\//,
+  /genai\//, /machine-learning\//, /deep-learning\//
+];
+
 /**
  * Scan GitHub repositories for AI usage
+ */
+/**
+ * Scan GitHub repositories for AI usage detection
+ * Based on best practices for detecting AI/ML usage in code repositories
  */
 async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSelect) {
   try {
@@ -49,108 +66,289 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
       'User-Agent': 'AIGovernancePlatform'
     };
     
-    // Get all repositories for the organization
-    const reposResponse = await axios.get(
-      `${apiUrl}/orgs/${config.github_org_name}/repos?per_page=100`,
-      { headers }
-    );
+    let repositories: any[] = [];
     
-    const repositories = reposResponse.data;
+    try {
+      // First try to get organization repositories
+      const orgReposResponse = await axios.get(
+        `${apiUrl}/orgs/${config.github_org_name}/repos?per_page=100`,
+        { headers }
+      );
+      repositories = orgReposResponse.data;
+    } catch (orgError) {
+      console.log(`Not an organization or error accessing org. Trying as user: ${config.github_org_name}`);
+      
+      // If that fails, try as a user
+      try {
+        const userReposResponse = await axios.get(
+          `${apiUrl}/users/${config.github_org_name}/repos?per_page=100`,
+          { headers }
+        );
+        repositories = userReposResponse.data;
+      } catch (userError) {
+        const errMsg = userError instanceof Error ? userError.message : 'Unknown error';
+        console.error(`Failed to access repositories: ${errMsg}`);
+        throw new Error(`Could not access repositories for ${config.github_org_name}`);
+      }
+    }
+    
     console.log(`Found ${repositories.length} repositories for ${config.github_org_name}`);
+    
+    // Update config status to scanning
+    await db.update(githubScanConfigs)
+      .set({ status: 'scanning' })
+      .where(eq(githubScanConfigs.id, config.id));
     
     let reposWithAI = 0;
     
-    // Process each repository
+    // Process each repository with delay to avoid rate limits
     for (const repo of repositories) {
       console.log(`Scanning repository: ${repo.name}`);
       
       try {
-        // Check package files for AI libraries
+        const aiSignals: { 
+          type: string,
+          path: string | null, 
+          details: string, 
+          confidence: number 
+        }[] = [];
+        
         const aiLibrariesFound: string[] = [];
         const aiFrameworksFound: string[] = [];
         
-        // Check package.json for Node.js projects
-        try {
-          const packageJsonResponse = await axios.get(
-            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/package.json`,
-            { headers }
-          );
-          
-          if (packageJsonResponse.status === 200) {
-            const content = Buffer.from(packageJsonResponse.data.content, 'base64').toString();
-            const packageJson = JSON.parse(content);
-            
-            // Check dependencies and devDependencies
-            const dependencies = {
-              ...(packageJson.dependencies || {}),
-              ...(packageJson.devDependencies || {})
-            };
-            
-            // Look for AI libraries
-            for (const [dep, _] of Object.entries(dependencies)) {
-              if (AI_LIBRARIES.some(lib => dep.toLowerCase().includes(lib.toLowerCase()))) {
-                aiLibrariesFound.push(dep);
-              }
-            }
-          }
-        } catch (error) {
-          // Package.json might not exist, continue with other checks
+        // Check repository name and description for AI/ML keywords
+        const repoName = repo.name.toLowerCase();
+        const nameKeywords = AI_LIBRARIES.filter(kw => repoName.includes(kw.toLowerCase()));
+        
+        if (nameKeywords.length > 0) {
+          aiSignals.push({
+            type: 'Repository Name',
+            path: null,
+            details: `Keywords found: ${nameKeywords.join(', ')}`,
+            confidence: 0.6
+          });
         }
         
-        // Check requirements.txt for Python projects
-        try {
-          const requirementsResponse = await axios.get(
-            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/requirements.txt`,
-            { headers }
+        if (repo.description) {
+          const descKeywords = AI_LIBRARIES.filter(kw => 
+            repo.description.toLowerCase().includes(kw.toLowerCase())
           );
           
-          if (requirementsResponse.status === 200) {
-            const content = Buffer.from(requirementsResponse.data.content, 'base64').toString();
-            const requirements = content.split('\n');
-            
-            // Look for AI libraries
-            for (const req of requirements) {
-              const packageName = req.trim().split('==')[0].split('>=')[0].split('<=')[0].trim();
-              if (AI_LIBRARIES.some(lib => packageName.toLowerCase().includes(lib.toLowerCase()))) {
-                aiLibrariesFound.push(packageName);
-              }
-            }
+          if (descKeywords.length > 0) {
+            aiSignals.push({
+              type: 'Repository Description',
+              path: null,
+              details: `Keywords found: ${descKeywords.join(', ')}`,
+              confidence: 0.5
+            });
           }
-        } catch (error) {
-          // requirements.txt might not exist, continue with other checks
         }
         
-        // Search code for AI imports and usage
-        try {
-          const searchResponse = await axios.get(
-            `${apiUrl}/search/code?q=org:${config.github_org_name}+repo:${repo.name}+${AI_LIBRARIES.join('+OR+')}`,
-            { headers }
-          );
-          
-          if (searchResponse.status === 200 && searchResponse.data.items.length > 0) {
-            // Additional AI references found in code
-            for (const item of searchResponse.data.items) {
-              // Extract library name from matched text
-              for (const lib of AI_LIBRARIES) {
-                if (item.name.toLowerCase().includes(lib.toLowerCase()) || 
-                    item.path.toLowerCase().includes(lib.toLowerCase())) {
-                  if (!aiLibrariesFound.includes(lib)) {
-                    aiLibrariesFound.push(lib);
+        // Check dependency files
+        const dependencyFiles = ['package.json', 'requirements.txt', 'environment.yml', 'Pipfile', 'pyproject.toml'];
+        
+        for (const depFile of dependencyFiles) {
+          try {
+            const response = await axios.get(
+              `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/${depFile}`,
+              { headers }
+            );
+            
+            if (response.status === 200) {
+              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+              
+              // Parse based on file type
+              if (depFile === 'package.json') {
+                try {
+                  const packageJson = JSON.parse(content);
+                  
+                  // Check dependencies and devDependencies
+                  const dependencies = {
+                    ...(packageJson.dependencies || {}),
+                    ...(packageJson.devDependencies || {})
+                  };
+                  
+                  // Look for AI libraries
+                  for (const [dep, version] of Object.entries(dependencies)) {
+                    for (const lib of AI_LIBRARIES) {
+                      if (dep.toLowerCase().includes(lib.toLowerCase())) {
+                        if (!aiLibrariesFound.includes(dep)) {
+                          aiLibrariesFound.push(dep);
+                          aiFrameworksFound.push(`${dep}@${version}`);
+                        }
+                      }
+                    }
+                  }
+                } catch (parseError) {
+                  console.error(`Error parsing package.json for ${repo.name}:`, parseError);
+                }
+              } else {
+                // For requirements.txt and other Python dependency files
+                const lines = content.split('\n');
+                
+                for (const line of lines) {
+                  if (line.trim() && !line.startsWith('#')) {
+                    // Extract package name (strip version info)
+                    const packageName = line.trim().split(/[=><~]/)[0].trim();
+                    
+                    for (const lib of AI_LIBRARIES) {
+                      if (packageName.toLowerCase().includes(lib.toLowerCase())) {
+                        if (!aiLibrariesFound.includes(packageName)) {
+                          aiLibrariesFound.push(packageName);
+                          aiFrameworksFound.push(line.trim());
+                        }
+                      }
+                    }
                   }
                 }
               }
+              
+              if (aiLibrariesFound.length > 0) {
+                aiSignals.push({
+                  type: 'Dependency File',
+                  path: depFile,
+                  details: `AI libraries found in ${depFile}: ${aiLibrariesFound.join(', ')}`,
+                  confidence: 0.9
+                });
+              }
             }
+          } catch (error) {
+            // File might not exist, continue with other checks
           }
-        } catch (error) {
-          console.error(`Error searching code for ${repo.name}:`, error.message);
         }
         
-        // Record results for this repository
-        const hasAiUsage = aiLibrariesFound.length > 0 || aiFrameworksFound.length > 0;
+        // Check top-level directory structure
+        try {
+          const contentsResponse = await axios.get(
+            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents`,
+            { headers }
+          );
+          
+          if (contentsResponse.status === 200) {
+            const contents = contentsResponse.data;
+            const interestingDirs: string[] = [];
+            
+            // First pass: scan top level files and directories
+            for (const item of contents) {
+              if (item.type === 'file') {
+                const fileName = item.name.toLowerCase();
+                const filePath = item.path;
+                
+                // Check for model files
+                if (AI_FILE_PATTERNS.some(pattern => pattern.test(fileName))) {
+                  aiSignals.push({
+                    type: 'Model File',
+                    path: filePath,
+                    details: `Model file detected: ${fileName}`,
+                    confidence: 0.8
+                  });
+                  
+                  // For Jupyter notebooks, try to look at content
+                  if (fileName.endsWith('.ipynb')) {
+                    try {
+                      const notebookResponse = await axios.get(item.download_url, { headers });
+                      const notebookContent = JSON.stringify(notebookResponse.data);
+                      
+                      // Check for AI imports
+                      for (const lib of AI_LIBRARIES) {
+                        if (notebookContent.toLowerCase().includes(`import ${lib.toLowerCase()}`) ||
+                            notebookContent.toLowerCase().includes(`from ${lib.toLowerCase()} import`)) {
+                          if (!aiLibrariesFound.includes(lib)) {
+                            aiLibrariesFound.push(lib);
+                          }
+                          
+                          aiSignals.push({
+                            type: 'Notebook Import',
+                            path: filePath,
+                            details: `AI library import: ${lib}`,
+                            confidence: 0.95
+                          });
+                        }
+                      }
+                    } catch (notebookError) {
+                      // Skip notebook content analysis on error
+                    }
+                  }
+                }
+              } else if (item.type === 'dir') {
+                // Check for AI/ML related directories
+                if (AI_FOLDER_PATTERNS.some(pattern => pattern.test(item.path.toLowerCase()))) {
+                  aiSignals.push({
+                    type: 'AI Directory',
+                    path: item.path,
+                    details: `Directory related to AI/ML: ${item.path}`,
+                    confidence: 0.7
+                  });
+                  
+                  interestingDirs.push(item.path);
+                }
+              }
+            }
+            
+            // Second pass: check interesting directories (limit to avoid rate limits)
+            for (const dir of interestingDirs.slice(0, 3)) {
+              try {
+                const dirResponse = await axios.get(
+                  `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/${dir}`,
+                  { headers }
+                );
+                
+                for (const item of dirResponse.data) {
+                  if (item.type === 'file' && 
+                      AI_FILE_PATTERNS.some(pattern => pattern.test(item.name.toLowerCase()))) {
+                    aiSignals.push({
+                      type: 'AI Model in AI Directory',
+                      path: item.path,
+                      details: `AI model file in AI directory: ${item.path}`,
+                      confidence: 0.95
+                    });
+                    
+                    // Add framework flag based on file extension
+                    const ext = item.name.split('.').pop()?.toLowerCase();
+                    if (ext === 'h5' || ext === 'keras') {
+                      if (!aiLibrariesFound.includes('tensorflow')) {
+                        aiLibrariesFound.push('tensorflow');
+                        aiFrameworksFound.push('tensorflow/keras (model files)');
+                      }
+                    } else if (ext === 'pt' || ext === 'pth') {
+                      if (!aiLibrariesFound.includes('pytorch')) {
+                        aiLibrariesFound.push('pytorch');
+                        aiFrameworksFound.push('pytorch (model files)');
+                      }
+                    } else if (ext === 'onnx') {
+                      if (!aiLibrariesFound.includes('onnx')) {
+                        aiLibrariesFound.push('onnx');
+                        aiFrameworksFound.push('onnx (model files)');
+                      }
+                    }
+                  }
+                }
+              } catch (dirError) {
+                // Skip on directory error
+              }
+              
+              // Small delay to avoid API rate limits
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        } catch (contentError) {
+          console.error(`Error fetching repo contents for ${repo.name}:`, contentError);
+        }
+        
+        // Determine if repo has AI usage
+        const hasAiUsage = aiSignals.length > 0 || aiLibrariesFound.length > 0;
         
         if (hasAiUsage) {
           reposWithAI++;
+          
+          // Only log AI findings
+          console.log(`AI usage detected in ${repo.name}:`);
+          console.log(`- Libraries: ${aiLibrariesFound.join(', ')}`);
+          console.log(`- Signals: ${aiSignals.map(s => s.type).join(', ')}`);
         }
+        
+        // Create a list of unique libraries
+        const uniqueLibraries = [...new Set(aiLibrariesFound)];
         
         // Save repository scan result to database
         await db.insert(githubScanResults).values({
@@ -159,14 +357,15 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
           repository_name: repo.name,
           repository_url: repo.html_url,
           has_ai_usage: hasAiUsage,
-          ai_libraries: aiLibrariesFound,
-          ai_frameworks: aiFrameworksFound
+          ai_libraries: uniqueLibraries,
+          ai_frameworks: aiFrameworksFound.slice(0, 10) // Limit to avoid DB size issues
         });
         
-        console.log(`Completed scan for ${repo.name}, AI usage: ${hasAiUsage}`);
+        // Pause to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      } catch (repoError) {
+        const errorMessage = repoError instanceof Error ? repoError.message : 'Unknown error';
         console.error(`Error scanning repository ${repo.name}:`, errorMessage);
       }
     }
@@ -188,9 +387,11 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
       .where(eq(githubScanConfigs.id, config.id));
     
     console.log(`GitHub scan completed for ${config.github_org_name}`);
+    console.log(`Found ${reposWithAI} out of ${repositories.length} repositories using AI`);
     
   } catch (error) {
-    console.error("GitHub scan failed:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error("GitHub scan failed:", errorMessage);
     
     // Update config with error status
     await db.update(githubScanConfigs)

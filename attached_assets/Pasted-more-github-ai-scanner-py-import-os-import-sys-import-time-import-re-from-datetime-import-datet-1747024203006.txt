@@ -1,0 +1,372 @@
+more github_ai_scanner.py
+import os
+import sys
+import time
+import re
+from datetime import datetime
+import logging
+import psycopg2
+from github import Github, GithubException
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("scanner.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# GitHub API token
+github_token = os.getenv('GITHUB_TOKEN')
+if not github_token:
+    logger.error("GitHub token not found in environment variables")
+    sys.exit(1)
+
+# Database connection parameters
+db_params = {
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'port': os.getenv('DB_PORT', '5432'),
+    'database': os.getenv('DB_NAME', 'ai_inventory'),
+    'user': os.getenv('DB_USER', 'aiscanner'),
+    'password': os.getenv('DB_PASSWORD')
+}
+
+# AI/ML related keywords and patterns
+AI_ML_KEYWORDS = [
+    "tensorflow", "pytorch", "scikit-learn", "keras", "huggingface",
+    "transformers", "langchain", "openai", "anthropic", "claude", "gpt", "llm",
+    "machine learning", "deep learning", "neural network", "bert", "dalle",
+    "stable-diffusion", "whisper", "ml-", "ai-", "diffusion"
+]
+
+AI_ML_FILE_PATTERNS = [
+    r".*\.h5$", r".*\.pkl$", r".*\.pt$", r".*\.onnx$", r".*\.pb$",
+    r".*_model\..*$", r".*\.safetensors$", r".*\.joblib$"
+]
+
+AI_ML_FOLDER_PATTERNS = [
+    r".*/models/.*", r".*/ai/.*", r".*/ml/.*", r".*/llm/.*",
+    r".*/genai/.*", r".*/machine-learning/.*"
+]
+
+def connect_to_db():
+    try:
+        conn = psycopg2.connect(**db_params)
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        return None
+
+def insert_repository(conn, name, owner, url, description):
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO repositories (name, owner, url, description) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (name, owner, url, description)
+        )
+        repo_id = cur.fetchone()[0]
+        conn.commit()
+        return repo_id
+
+def insert_ai_signal(conn, repo_id, signal_type, path, details, confidence):
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO ai_signals (repository_id, signal_type, signal_path, "
+            "signal_details, confidence_score) VALUES (%s, %s, %s, %s, %s)",
+            (repo_id, signal_type, path, details, confidence)
+        )
+        conn.commit()
+
+def insert_ai_framework(conn, repo_id, framework, version, path):
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO ai_frameworks (repository_id, framework_name, version, file_path) "
+            "VALUES (%s, %s, %s, %s)",
+            (repo_id, framework, version, path)
+        )
+        conn.commit()
+
+def record_scan_history(conn, start_time, end_time, repos_scanned, ai_repos_found, status, error_msg=None):
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO scan_history (scan_start, scan_end, repos_scanned, ai_repos_found, status, error_message) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (start_time, end_time, repos_scanned, ai_repos_found, status, error_msg)
+        )
+        conn.commit()
+
+def check_content_for_ai_keywords(content):
+    content_lower = content.lower()
+    matches = []
+    for keyword in AI_ML_KEYWORDS:
+        if keyword in content_lower:
+            matches.append(keyword)
+    return matches
+
+def scan_dependency_file(repo, file_path):
+    try:
+        content = repo.get_contents(file_path)
+        if content.size > 1000000:  # Skip large files
+            return []
+
+        content_str = content.decoded_content.decode('utf-8', errors='ignore')
+
+        frameworks = []
+        for keyword in AI_ML_KEYWORDS:
+            if keyword in content_str.lower():
+                # Try to find version information using regex patterns based on file type
+                version = None
+                if file_path.endswith(".txt"):
+                    # For requirements.txt format
+                    match = re.search(f"{keyword}[=~<>]+([0-9][0-9\\.-]*)", content_str, re.IGNORECASE)
+                    if match:
+                        version = match.group(1)
+                elif file_path.endswith(".json"):
+                    # For package.json format
+                    match = re.search(f'"{keyword}["\\-]?.*?["\']:\\s*["\']([0-9][0-9\\.-]*)', content_str, re.IGNORECASE)
+                    if match:
+                        version = match.group(1)
+
+                frameworks.append({
+                    "name": keyword,
+                    "version": version,
+                    "path": file_path
+                })
+
+        return frameworks
+    except Exception as e:
+        logger.warning(f"Error scanning {file_path}: {e}")
+        return []
+
+def scan_repository(repo, conn):
+    ai_signals = []
+    has_ai_indicators = False
+    frameworks = []
+
+    # Basic repository information
+    repo_name = repo.name
+    repo_owner = repo.owner.login
+    repo_url = repo.html_url
+    repo_description = repo.description
+
+    logger.info(f"Scanning repository: {repo_owner}/{repo_name}")
+
+    # Check repository name and description
+    name_keywords = [keyword for keyword in AI_ML_KEYWORDS if keyword in repo_name.lower()]
+    if name_keywords:
+        ai_signals.append({
+            "type": "Repository Name",
+            "path": None,
+            "details": f"Keywords found: {', '.join(name_keywords)}",
+            "confidence": 0.8
+        })
+        has_ai_indicators = True
+
+    if repo_description:
+        desc_keywords = [keyword for keyword in AI_ML_KEYWORDS if keyword in repo_description.lower()]
+        if desc_keywords:
+            ai_signals.append({
+                "type": "Repository Description",
+                "path": None,
+                "details": f"Keywords found: {', '.join(desc_keywords)}",
+                "confidence": 0.6
+            })
+            has_ai_indicators = True
+
+    # Scan for dependency files
+    for dep_file in ["requirements.txt", "setup.py", "package.json", "environment.yml", "Pipfile"]:
+        try:
+            found_frameworks = scan_dependency_file(repo, dep_file)
+            if found_frameworks:
+                has_ai_indicators = True
+                frameworks.extend(found_frameworks)
+                ai_signals.append({
+                    "type": "Dependency File",
+                    "path": dep_file,
+                    "details": f"AI frameworks found: {', '.join([f['name'] for f in found_frameworks])}",
+                    "confidence": 0.9
+                })
+        except Exception:
+            # File might not exist
+            pass
+
+    # Scan repository structure (limited to avoid too many API calls)
+    try:
+        contents = repo.get_contents("")
+        folders_to_check = []
+
+        # First pass: check top-level files and collect folders
+        for item in contents:
+            if item.type == "file":
+                # Check for model files
+                file_path = item.path
+                if any(re.match(pattern, file_path) for pattern in AI_ML_FILE_PATTERNS):
+                    ai_signals.append({
+                        "type": "Model File",
+                        "path": file_path,
+                        "details": f"Potential model file: {file_path}",
+                        "confidence": 0.7
+                    })
+                    has_ai_indicators = True
+
+                # Check for Jupyter notebooks
+                if file_path.endswith(".ipynb"):
+                    try:
+                        notebook_content = item.decoded_content.decode('utf-8', errors='ignore')
+                        ai_keywords = check_content_for_ai_keywords(notebook_content)
+                        if ai_keywords:
+                            ai_signals.append({
+                                "type": "Jupyter Notebook",
+                                "path": file_path,
+                                "details": f"AI keywords in notebook: {', '.join(ai_keywords)}",
+                                "confidence": 0.8
+                            })
+                            has_ai_indicators = True
+                    except Exception as e:
+                        logger.warning(f"Error processing notebook {file_path}: {e}")
+
+            elif item.type == "dir":
+                folder_path = item.path
+                # Check for AI/ML related folder names
+                if any(keyword in folder_path.lower() for keyword in ["model", "ai", "ml", "neural", "deep", "llm", "genai"]):
+                    folders_to_check.append(folder_path)
+                    ai_signals.append({
+                        "type": "AI/ML Folder",
+                        "path": folder_path,
+                        "details": f"Folder with AI/ML related name",
+                        "confidence": 0.5
+                    })
+                    has_ai_indicators = True
+
+        # Second pass: check a subset of promising folders (to avoid API rate limits)
+        for folder in folders_to_check[:3]:  # Limit to top 3 folders
+            try:
+                folder_contents = repo.get_contents(folder)
+                for item in folder_contents:
+                    if item.type == "file":
+                        if any(re.match(pattern, item.path) for pattern in AI_ML_FILE_PATTERNS):
+                            ai_signals.append({
+                                "type": "Nested Model File",
+                                "path": item.path,
+                                "details": f"Potential model file in AI/ML folder",
+                                "confidence": 0.9
+                            })
+                            has_ai_indicators = True
+            except Exception as e:
+                logger.warning(f"Error scanning folder {folder}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Error scanning repository structure: {e}")
+
+    # Store findings in database if AI/ML indicators were found
+    if has_ai_indicators:
+        try:
+            repo_id = insert_repository(conn, repo_name, repo_owner, repo_url, repo_description)
+
+            # Insert AI signals
+            for signal in ai_signals:
+                insert_ai_signal(
+                    conn,
+                    repo_id,
+                    signal["type"],
+                    signal["path"],
+                    signal["details"],
+                    signal["confidence"]
+                )
+
+            # Insert frameworks
+            for framework in frameworks:
+                insert_ai_framework(
+                    conn,
+                    repo_id,
+                    framework["name"],
+                    framework["version"],
+                    framework["path"]
+                )
+
+            logger.info(f"✅ Found AI/ML indicators in {repo_owner}/{repo_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Error storing repository data: {e}")
+
+    return False
+
+def main():
+    # Record scan start time
+    scan_start = datetime.now()
+    repos_scanned = 0
+    ai_repos_found = 0
+
+    # Connect to DB
+    conn = connect_to_db()
+    if not conn:
+        return
+
+    try:
+        # Initialize GitHub client
+        g = Github(github_token)
+
+        # Get organization or user to scan
+        target = input("Enter GitHub organization or username to scan: ")
+        is_org = input("Is this an organization? (y/n): ").lower() == 'y'
+
+        if is_org:
+            entity = g.get_organization(target)
+        else:
+            entity = g.get_user(target)
+
+        # Get repositories
+        repositories = entity.get_repos()
+
+        # Scan each repository
+        for repo in repositories:
+            repos_scanned += 1
+            try:
+                if scan_repository(repo, conn):
+                    ai_repos_found += 1
+
+                # Sleep to avoid hitting rate limits
+                time.sleep(2)
+            except GithubException as e:
+                if e.status == 403 and 'rate limit' in str(e).lower():
+                    logger.error("GitHub API rate limit exceeded. Waiting for reset...")
+                    # Wait for rate limit reset with some buffer
+                    reset_time = g.get_rate_limit().core.reset
+                    sleep_time = (reset_time - datetime.utcnow()).total_seconds() + 60
+                    logger.info(f"Sleeping for {sleep_time/60:.1f} minutes")
+                    time.sleep(max(sleep_time, 0))
+                else:
+                    logger.error(f"GitHub API error: {e}")
+            except Exception as e:
+                logger.error(f"Error scanning repository {repo.full_name}: {e}")
+
+            # Progress update
+            if repos_scanned % 5 == 0:
+                logger.info(f"Progress: Scanned {repos_scanned} repositories, found {ai_repos_found} with AI/ML indicators")
+
+    except Exception as e:
+        logger.error(f"Error in main execution: {e}")
+        scan_end = datetime.now()
+        record_scan_history(conn, scan_start, scan_end, repos_scanned, ai_repos_found, "ERROR", str(e))
+        conn.close()
+        return
+
+    # Record scan completion
+    scan_end = datetime.now()
+    record_scan_history(conn, scan_start, scan_end, repos_scanned, ai_repos_found, "COMPLETED")
+
+    logger.info(f"Scan completed in {(scan_end - scan_start).total_seconds()/60:.2f} minutes")
+    logger.info(f"Total repositories scanned: {repos_scanned}")
+    logger.info(f"Repositories with AI/ML indicators: {ai_repos_found}")
+
+    conn.close()
+
+if __name__ == "__main__":
+    main()
