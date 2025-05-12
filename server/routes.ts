@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
-import { eq, and, count, asc, desc } from "drizzle-orm";
+import { eq, and, count, sum, asc, desc, SQL } from "drizzle-orm";
 import axios from 'axios';
 import { 
   users, 
@@ -15,13 +15,17 @@ import {
   githubScanConfigs,
   githubScanResults,
   githubScanSummaries,
+  biasAnalysisScans,
+  biasAnalysisResults,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
   insertAiSystemSchema,
   insertRiskItemSchema,
   insertComplianceIssueSchema,
-  insertGithubScanConfigSchema 
+  insertGithubScanConfigSchema,
+  insertBiasAnalysisScanSchema,
+  insertBiasAnalysisResultSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
 
@@ -925,6 +929,319 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to add to risk register", error: error.message });
     }
   });
+
+  // Bias Analysis API Endpoints
+  
+  // Get all bias analysis scans for the organization
+  app.get("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
+    try {
+      // Extract organization ID from user object based on structure from the auth module
+      const organizationId = req.user?.organization?.[0] || 1; // Default to org ID 1 if not found
+      
+      const scans = await db.select()
+        .from(biasAnalysisScans)
+        .where(eq(biasAnalysisScans.organizationId, organizationId))
+        .orderBy(desc(biasAnalysisScans.startedAt));
+      
+      res.json(scans);
+    } catch (error) {
+      console.error("Error fetching bias analysis scans:", error);
+      res.status(500).json({ message: "Failed to fetch bias analysis scans" });
+    }
+  });
+  
+  // Get a specific bias analysis scan with its results
+  app.get("/api/bias-analysis/scans/:scanId", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the scan
+      const [scan] = await db.select()
+        .from(biasAnalysisScans)
+        .where(
+          and(
+            eq(biasAnalysisScans.id, scanId),
+            eq(biasAnalysisScans.organizationId, organizationId)
+          )
+        );
+      
+      if (!scan) {
+        return res.status(404).json({ message: "Bias analysis scan not found" });
+      }
+      
+      // Get the results
+      const results = await db.select()
+        .from(biasAnalysisResults)
+        .where(eq(biasAnalysisResults.scanId, scanId))
+        .orderBy(asc(biasAnalysisResults.metricName));
+      
+      // Group results by demographic group
+      const resultsByGroup = {};
+      results.forEach(result => {
+        const group = result.demographicGroup || "overall";
+        if (!resultsByGroup[group]) {
+          resultsByGroup[group] = [];
+        }
+        resultsByGroup[group].push(result);
+      });
+      
+      res.json({
+        scan,
+        resultsByGroup
+      });
+    } catch (error) {
+      console.error("Error fetching bias analysis scan:", error);
+      res.status(500).json({ message: "Failed to fetch bias analysis scan details" });
+    }
+  });
+  
+  // Create a new bias analysis scan
+  app.post("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id || 2; // Default to demo_user if not found
+      
+      const { name, description, dataSource } = req.body;
+      
+      if (!name || !dataSource) {
+        return res.status(400).json({ message: "Name and data source are required" });
+      }
+      
+      // Create the scan
+      const [scan] = await db.insert(biasAnalysisScans)
+        .values({
+          name,
+          description: description || null,
+          dataSource,
+          status: "pending",
+          organizationId,
+          createdBy: userId
+        })
+        .returning();
+      
+      res.status(201).json(scan);
+    } catch (error) {
+      console.error("Error creating bias analysis scan:", error);
+      res.status(500).json({ message: "Failed to create bias analysis scan" });
+    }
+  });
+  
+  // Process a bias analysis scan (CSV/JSON upload or webhook data)
+  app.post("/api/bias-analysis/process/:scanId", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the scan
+      const [scan] = await db.select()
+        .from(biasAnalysisScans)
+        .where(
+          and(
+            eq(biasAnalysisScans.id, scanId),
+            eq(biasAnalysisScans.organizationId, organizationId)
+          )
+        );
+      
+      if (!scan) {
+        return res.status(404).json({ message: "Bias analysis scan not found" });
+      }
+      
+      if (scan.status !== "pending") {
+        return res.status(400).json({ message: "Can only process scans in pending status" });
+      }
+      
+      // Update scan to processing status
+      await db.update(biasAnalysisScans)
+        .set({ status: "processing" })
+        .where(eq(biasAnalysisScans.id, scanId));
+      
+      // Determine the data source and how to process it
+      let dataToAnalyze = null;
+      
+      if (scan.dataSource === "json") {
+        if (!req.body.data) {
+          return res.status(400).json({ message: "JSON data is required" });
+        }
+        dataToAnalyze = req.body.data;
+      } else if (scan.dataSource === "csv") {
+        if (!req.body.csvData) {
+          return res.status(400).json({ message: "CSV data is required" });
+        }
+        // Convert CSV to JSON
+        const csvData = req.body.csvData;
+        // Simple CSV parsing (for production, use a proper CSV parser)
+        const lines = csvData.split("\n");
+        const headers = lines[0].split(",").map(h => h.trim());
+        dataToAnalyze = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          const values = line.split(",").map(v => v.trim());
+          const dataRow = {};
+          
+          headers.forEach((header, idx) => {
+            dataRow[header] = values[idx] || null;
+          });
+          
+          dataToAnalyze.push(dataRow);
+        }
+      } else if (scan.dataSource === "webhook") {
+        // For webhook data, just use the raw request body
+        dataToAnalyze = req.body;
+      }
+      
+      if (!dataToAnalyze || (Array.isArray(dataToAnalyze) && dataToAnalyze.length === 0)) {
+        await db.update(biasAnalysisScans)
+          .set({ status: "failed", completedAt: new Date() })
+          .where(eq(biasAnalysisScans.id, scanId));
+          
+        return res.status(400).json({ message: "No data to analyze" });
+      }
+      
+      // For demonstration, we'll perform bias analysis on the data
+      // In production, this would be a more sophisticated algorithm
+      const biasResults = await analyzeBiasInData(dataToAnalyze, scanId, organizationId);
+      
+      // Update scan to completed status
+      await db.update(biasAnalysisScans)
+        .set({ status: "completed", completedAt: new Date() })
+        .where(eq(biasAnalysisScans.id, scanId));
+      
+      res.json({
+        message: "Bias analysis completed successfully",
+        scanId,
+        resultCount: biasResults.length
+      });
+    } catch (error) {
+      console.error("Error processing bias analysis:", error);
+      
+      // Update scan to failed status
+      await db.update(biasAnalysisScans)
+        .set({ status: "failed", completedAt: new Date() })
+        .where(eq(biasAnalysisScans.id, parseInt(req.params.scanId)));
+        
+      res.status(500).json({ message: "Failed to process bias analysis" });
+    }
+  });
+  
+  // Bias analysis function
+  async function analyzeBiasInData(data, scanId, organizationId) {
+    // This is a simplified bias analysis algorithm
+    // In a real system, this would use proper statistical methods and ML techniques
+    
+    const results = [];
+    
+    // Add a gender bias test
+    if (Array.isArray(data) && data.length > 0) {
+      // Check if we have gender data
+      const hasGenderField = data.some(row => 
+        row.gender || row.Gender || row.sex || row.Sex || 
+        Object.keys(row).some(key => key.toLowerCase().includes('gender') || key.toLowerCase().includes('sex'))
+      );
+      
+      if (hasGenderField) {
+        // Group by gender
+        const genderGroups = {};
+        const genderKey = Object.keys(data[0]).find(k => 
+          k.toLowerCase().includes('gender') || k.toLowerCase().includes('sex')
+        ) || 'gender';
+        
+        data.forEach(row => {
+          const gender = (row[genderKey] || 'unknown').toLowerCase();
+          if (!genderGroups[gender]) {
+            genderGroups[gender] = 0;
+          }
+          genderGroups[gender]++;
+        });
+        
+        // Calculate gender distribution
+        const totalCount = Object.values(genderGroups).reduce((sum, count) => sum + count, 0);
+        const genders = Object.keys(genderGroups);
+        
+        // Check for representation bias
+        if (genders.length > 1) {
+          const percentages = {};
+          let maxPct = 0;
+          let minPct = 100;
+          
+          genders.forEach(gender => {
+            const pct = (genderGroups[gender] / totalCount) * 100;
+            percentages[gender] = pct;
+            maxPct = Math.max(maxPct, pct);
+            minPct = Math.min(minPct, pct);
+          });
+          
+          // Calculate bias score based on difference between max and min percentages
+          const balanceScore = 100 - Math.min(100, (maxPct - minPct) * 2);
+          
+          // Add a result for gender representation bias
+          const genderResult = {
+            scanId,
+            organizationId,
+            metricName: "Gender Representation",
+            metricDescription: "Measures balance in gender representation across the dataset",
+            score: balanceScore,
+            threshold: 70, // Threshold for passing
+            status: balanceScore >= 70 ? "pass" : balanceScore >= 50 ? "warning" : "fail",
+            demographicGroup: "overall",
+            additionalData: JSON.stringify({ 
+              percentages,
+              totalSamples: totalCount 
+            })
+          };
+          
+          results.push(genderResult);
+          
+          // Save the result to the database
+          await db.insert(biasAnalysisResults).values(genderResult);
+        }
+      }
+      
+      // Add other bias checks like age, ethnicity, etc. following similar patterns
+      // ...
+      
+      // Example: Add a data completeness metric
+      let totalFields = 0;
+      let emptyFields = 0;
+      
+      data.forEach(row => {
+        Object.values(row).forEach(value => {
+          totalFields++;
+          if (value === null || value === undefined || value === "") {
+            emptyFields++;
+          }
+        });
+      });
+      
+      const completenessScore = 100 - Math.min(100, (emptyFields / totalFields) * 100);
+      
+      const completenessResult = {
+        scanId,
+        organizationId,
+        metricName: "Data Completeness",
+        metricDescription: "Measures the completeness of the dataset, which can impact bias",
+        score: completenessScore,
+        threshold: 80,
+        status: completenessScore >= 80 ? "pass" : completenessScore >= 60 ? "warning" : "fail",
+        demographicGroup: "overall",
+        additionalData: JSON.stringify({
+          totalFields,
+          emptyFields,
+          completenessRate: ((totalFields - emptyFields) / totalFields).toFixed(2)
+        })
+      };
+      
+      results.push(completenessResult);
+      
+      // Save the result to the database
+      await db.insert(biasAnalysisResults).values(completenessResult);
+    }
+    
+    return results;
+  }
 
   const httpServer = createServer(app);
 
