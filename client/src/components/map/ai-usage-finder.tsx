@@ -465,15 +465,23 @@ export function AIUsageFinder() {
                                   <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                     <div 
                                       className={`h-full ${
-                                        (result.confidence_score || 0) > 0.7 ? 'bg-red-500' : 
-                                        (result.confidence_score || 0) > 0.4 ? 'bg-yellow-500' : 'bg-blue-500'
+                                        (result.confidence_score || 0) > 85 ? 'bg-red-500' : 
+                                        (result.confidence_score || 0) > 60 ? 'bg-orange-500' : 
+                                        (result.confidence_score || 0) > 30 ? 'bg-yellow-500' : 'bg-blue-400'
                                       }`}
-                                      style={{ width: `${((result.confidence_score || 0.5) * 100)}%` }}
+                                      style={{ width: `${Math.min(100, (result.confidence_score || 70))}%` }}
                                     ></div>
                                   </div>
-                                  <span className="ml-2 text-xs">
-                                    {Math.round(((result.confidence_score || 0.5) * 100))}%
-                                  </span>
+                                  <div className="ml-2 flex flex-col">
+                                    <span className="text-sm font-medium">
+                                      {result.confidence_score || 0}%
+                                    </span>
+                                    {result.detection_type && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {result.detection_type}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </TableCell>
