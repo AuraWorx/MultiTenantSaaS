@@ -656,76 +656,78 @@ export function BiasAnalysis() {
                 )}
               </div>
             </CardContent>
-            <CardFooter className="pt-6 pb-8">
-              <div className="w-full flex justify-center">
-                <Button 
-                  size="lg"
-                  className="px-8 py-6 text-lg font-medium" 
-                  onClick={handleStartAnalysis}
-                  disabled={
-                    !scanName || 
-                    createScanMutation.isPending || 
-                    processScanMutation.isPending ||
-                    (selectedDataSource !== 'webhook' && !fileData) ||
-                    (selectedDataSource === 'webhook' && !testDataUrl)
-                  }
-                >
-                  {createScanMutation.isPending || processScanMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      {createScanMutation.isPending ? 'Creating scan...' : 'Processing data...'}
-                    </>
-                  ) : (
-                    <>
-                      <BarChart4 className="mr-2 h-5 w-5" />
-                      Start Analysis
-                    </>
-                  )}
-                </Button>
+        </Card>
+        
+        {/* Create a separate action card for the Start Analysis button to avoid layout issues */}
+        <Card className="mt-4 border-t-2 border-blue-500 shadow-md">
+          <CardContent className="pt-6 pb-8 flex justify-center">
+            <Button 
+              size="lg"
+              className="px-8 py-6 text-lg font-medium min-w-[200px]" 
+              onClick={handleStartAnalysis}
+              disabled={
+                !scanName || 
+                createScanMutation.isPending || 
+                processScanMutation.isPending ||
+                (selectedDataSource !== 'webhook' && !fileData) ||
+                (selectedDataSource === 'webhook' && !testDataUrl)
+              }
+            >
+              {createScanMutation.isPending || processScanMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  {createScanMutation.isPending ? 'Creating scan...' : 'Processing data...'}
+                </>
+              ) : (
+                <>
+                  <BarChart4 className="mr-2 h-5 w-5" />
+                  Start Analysis
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Common Bias Issues</CardTitle>
+            <CardDescription>
+              Most frequently detected bias problems
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Gender bias in HR systems</div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.floor(Math.random() * 5) + 1} systems affected
+                </div>
+                <Progress value={80} className="h-2" />
               </div>
-            </CardFooter>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Common Bias Issues</CardTitle>
-              <CardDescription>
-                Most frequently detected bias problems
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Gender bias in HR systems</div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 5) + 1} systems affected
-                  </div>
-                  <Progress value={80} className="h-2" />
+              
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Age discrimination in loan applications</div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.floor(Math.random() * 5) + 1} systems affected
                 </div>
-                
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Age discrimination in loan applications</div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 5) + 1} systems affected
-                  </div>
-                  <Progress value={60} className="h-2" />
+                <Progress value={60} className="h-2" />
+              </div>
+              
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Racial bias in risk assessment</div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.floor(Math.random() * 3) + 1} systems affected
                 </div>
-                
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Racial bias in risk assessment</div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 3) + 1} systems affected
-                  </div>
-                  <Progress value={40} className="h-2" />
+                <Progress value={40} className="h-2" />
+              </div>
+              
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Geographic discrimination</div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.floor(Math.random() * 2) + 1} system affected
                 </div>
-                
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Geographic discrimination</div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 2) + 1} system affected
-                  </div>
-                  <Progress value={20} className="h-2" />
-                </div>
+                <Progress value={20} className="h-2" />
+              </div>
               </div>
             </CardContent>
           </Card>
