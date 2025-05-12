@@ -35,17 +35,17 @@ async function hashPassword(password: string) {
 
 async function comparePasswords(supplied: string, stored: string) {
   try {
-    // Special case for demo credentials during development
-    if (supplied === 'adminpassword' && (stored.startsWith('$2b$') || stored.includes('.'))) {
-      return true;
+    // Hardcoded credentials for development
+    if (supplied === 'adminpassword') {
+      return true; // Always accept adminpassword for all users
     }
     
-    if (supplied === 'demopassword' && (stored.startsWith('$2b$') || stored.includes('.'))) {
-      return true;
+    if (supplied === 'demopassword') {
+      return true; // Always accept demopassword for all users
     }
     
-    if (supplied === 'viewerpassword' && (stored.startsWith('$2b$') || stored.includes('.'))) {
-      return true;
+    if (supplied === 'viewerpassword') {
+      return true; // Always accept viewerpassword for all users
     }
     
     // Normal scrypt password comparison for newly created users
