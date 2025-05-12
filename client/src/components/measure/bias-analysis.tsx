@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,9 +21,38 @@ import {
   Filter, 
   Loader2, 
   PlusCircle, 
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 
+// API Types from our schema definitions
+interface BiasAnalysisScan {
+  id: number;
+  organizationId: number;
+  name: string;
+  description: string | null;
+  dataSource: string; // 'csv', 'json', 'webhook'
+  status: string; // 'pending', 'processing', 'completed', 'failed'
+  startedAt: string;
+  completedAt: string | null;
+  createdBy: number;
+}
+
+interface BiasAnalysisResult {
+  id: number;
+  scanId: number;
+  organizationId: number;
+  metricName: string;
+  metricDescription: string | null;
+  score: number;
+  threshold: number;
+  status: string; // 'pass', 'warning', 'fail'
+  demographicGroup: string | null;
+  additionalData: string | null; // JSON string
+  createdAt: string;
+}
+
+// Frontend display types
 interface BiasMetric {
   id: string;
   name: string;
@@ -44,6 +77,12 @@ interface BiasReport {
   status: 'pass' | 'warning' | 'fail';
   metrics: BiasMetric[];
   demographicGroups: Record<string, DemographicGroup[]>;
+}
+
+// Systems we can analyze
+interface AISystem {
+  id: number;
+  name: string;
 }
 
 // Mock data for bias metrics
