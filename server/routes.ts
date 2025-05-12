@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, count, asc, desc } from "drizzle-orm";
+import axios from 'axios';
 import { 
   users, 
   roles, 
@@ -11,14 +12,193 @@ import {
   aiSystems,
   riskItems,
   complianceIssues,
+  githubScanConfigs,
+  githubScanResults,
+  githubScanSummaries,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
   insertAiSystemSchema,
   insertRiskItemSchema,
-  insertComplianceIssueSchema 
+  insertComplianceIssueSchema,
+  insertGithubScanConfigSchema 
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
+
+// List of common AI/ML libraries to detect in repositories
+const AI_LIBRARIES = [
+  'tensorflow', 'pytorch', 'keras', 'scikit-learn', 'huggingface', 'transformers',
+  'openai', 'langchain', 'llama', 'gpt', 'bert', 'dalle', 'stable-diffusion',
+  'anthropic', 'claude', 'whisper', 'gemini', 'palm', 'llama-index', 'rag',
+  'machine-learning', 'deep-learning', 'neural-network', 'ml-agents', 'ai4j',
+  'autodl', 'autogpt', 'mlflow', 'fastai', 'spacy', 'nltk', 'gensim'
+];
+
+/**
+ * Scan GitHub repositories for AI usage
+ */
+async function scanGitHubRepositories(config: any) {
+  try {
+    console.log(`Starting GitHub scan for ${config.github_org_name}`);
+    
+    // Setup GitHub API client
+    const apiUrl = `https://api.github.com`;
+    const headers = {
+      'Authorization': `token ${config.api_key}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'AIGovernancePlatform'
+    };
+    
+    // Get all repositories for the organization
+    const reposResponse = await axios.get(
+      `${apiUrl}/orgs/${config.github_org_name}/repos?per_page=100`,
+      { headers }
+    );
+    
+    const repositories = reposResponse.data;
+    console.log(`Found ${repositories.length} repositories for ${config.github_org_name}`);
+    
+    let reposWithAI = 0;
+    
+    // Process each repository
+    for (const repo of repositories) {
+      console.log(`Scanning repository: ${repo.name}`);
+      
+      try {
+        // Check package files for AI libraries
+        const aiLibrariesFound = [];
+        const aiFrameworksFound = [];
+        
+        // Check package.json for Node.js projects
+        try {
+          const packageJsonResponse = await axios.get(
+            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/package.json`,
+            { headers }
+          );
+          
+          if (packageJsonResponse.status === 200) {
+            const content = Buffer.from(packageJsonResponse.data.content, 'base64').toString();
+            const packageJson = JSON.parse(content);
+            
+            // Check dependencies and devDependencies
+            const dependencies = {
+              ...(packageJson.dependencies || {}),
+              ...(packageJson.devDependencies || {})
+            };
+            
+            // Look for AI libraries
+            for (const [dep, _] of Object.entries(dependencies)) {
+              if (AI_LIBRARIES.some(lib => dep.toLowerCase().includes(lib.toLowerCase()))) {
+                aiLibrariesFound.push(dep);
+              }
+            }
+          }
+        } catch (error) {
+          // Package.json might not exist, continue with other checks
+        }
+        
+        // Check requirements.txt for Python projects
+        try {
+          const requirementsResponse = await axios.get(
+            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/requirements.txt`,
+            { headers }
+          );
+          
+          if (requirementsResponse.status === 200) {
+            const content = Buffer.from(requirementsResponse.data.content, 'base64').toString();
+            const requirements = content.split('\n');
+            
+            // Look for AI libraries
+            for (const req of requirements) {
+              const packageName = req.trim().split('==')[0].split('>=')[0].split('<=')[0].trim();
+              if (AI_LIBRARIES.some(lib => packageName.toLowerCase().includes(lib.toLowerCase()))) {
+                aiLibrariesFound.push(packageName);
+              }
+            }
+          }
+        } catch (error) {
+          // requirements.txt might not exist, continue with other checks
+        }
+        
+        // Search code for AI imports and usage
+        try {
+          const searchResponse = await axios.get(
+            `${apiUrl}/search/code?q=org:${config.github_org_name}+repo:${repo.name}+${AI_LIBRARIES.join('+OR+')}`,
+            { headers }
+          );
+          
+          if (searchResponse.status === 200 && searchResponse.data.items.length > 0) {
+            // Additional AI references found in code
+            for (const item of searchResponse.data.items) {
+              // Extract library name from matched text
+              for (const lib of AI_LIBRARIES) {
+                if (item.name.toLowerCase().includes(lib.toLowerCase()) || 
+                    item.path.toLowerCase().includes(lib.toLowerCase())) {
+                  if (!aiLibrariesFound.includes(lib)) {
+                    aiLibrariesFound.push(lib);
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error searching code for ${repo.name}:`, error.message);
+        }
+        
+        // Record results for this repository
+        const hasAiUsage = aiLibrariesFound.length > 0 || aiFrameworksFound.length > 0;
+        
+        if (hasAiUsage) {
+          reposWithAI++;
+        }
+        
+        // Save repository scan result to database
+        await db.insert(githubScanResults).values({
+          scan_config_id: config.id,
+          organization_id: config.organization_id,
+          repository_name: repo.name,
+          repository_url: repo.html_url,
+          has_ai_usage: hasAiUsage,
+          ai_libraries: aiLibrariesFound,
+          ai_frameworks: aiFrameworksFound
+        });
+        
+        console.log(`Completed scan for ${repo.name}, AI usage: ${hasAiUsage}`);
+        
+      } catch (error) {
+        console.error(`Error scanning repository ${repo.name}:`, error.message);
+      }
+    }
+    
+    // Create a summary record
+    await db.insert(githubScanSummaries).values({
+      scan_config_id: config.id,
+      organization_id: config.organization_id,
+      total_repositories: repositories.length,
+      repositories_with_ai: reposWithAI
+    });
+    
+    // Update config with completed status and timestamp
+    await db.update(githubScanConfigs)
+      .set({ 
+        status: 'completed',
+        last_scan_at: new Date()
+      })
+      .where(eq(githubScanConfigs.id, config.id));
+    
+    console.log(`GitHub scan completed for ${config.github_org_name}`);
+    
+  } catch (error) {
+    console.error("GitHub scan failed:", error);
+    
+    // Update config with error status
+    await db.update(githubScanConfigs)
+      .set({ status: 'failed' })
+      .where(eq(githubScanConfigs.id, config.id));
+    
+    throw error;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication endpoints
@@ -268,6 +448,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching roles:", error);
       res.status(500).json({ message: "Failed to fetch roles" });
+    }
+  });
+
+  // GitHub Scan Configuration endpoints
+  app.post("/api/github-scan/config", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      
+      // Validate and parse the request body
+      const configData = insertGithubScanConfigSchema.parse({
+        ...req.body,
+        organization_id: organizationId
+      });
+      
+      // Create the scan configuration
+      const [newConfig] = await db.insert(githubScanConfigs)
+        .values(configData)
+        .returning();
+      
+      res.status(201).json(newConfig);
+    } catch (error) {
+      console.error("Error creating GitHub scan configuration:", error);
+      res.status(500).json({ message: "Failed to create scan configuration", error: error.message });
+    }
+  });
+
+  app.get("/api/github-scan/configs", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      
+      // Fetch scan configs for the user's organization
+      const configs = await db.select({
+        id: githubScanConfigs.id,
+        githubOrgName: githubScanConfigs.github_org_name,
+        createdAt: githubScanConfigs.created_at,
+        lastScanAt: githubScanConfigs.last_scan_at,
+        status: githubScanConfigs.status
+      })
+      .from(githubScanConfigs)
+      .where(eq(githubScanConfigs.organization_id, organizationId));
+      
+      res.json(configs);
+    } catch (error) {
+      console.error("Error fetching GitHub scan configurations:", error);
+      res.status(500).json({ message: "Failed to fetch scan configurations" });
+    }
+  });
+
+  // GitHub Scan Results
+  app.get("/api/github-scan/results", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      const configId = req.query.configId ? parseInt(req.query.configId as string) : undefined;
+      
+      let query = db.select()
+        .from(githubScanResults)
+        .where(eq(githubScanResults.organization_id, organizationId));
+      
+      if (configId) {
+        query = query.where(eq(githubScanResults.scan_config_id, configId));
+      }
+      
+      const results = await query.orderBy(desc(githubScanResults.scan_date));
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching GitHub scan results:", error);
+      res.status(500).json({ message: "Failed to fetch scan results" });
+    }
+  });
+
+  // GitHub Scan Summaries
+  app.get("/api/github-scan/summaries", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      const configId = req.query.configId ? parseInt(req.query.configId as string) : undefined;
+      
+      let query = db.select()
+        .from(githubScanSummaries)
+        .where(eq(githubScanSummaries.organization_id, organizationId));
+      
+      if (configId) {
+        query = query.where(eq(githubScanSummaries.scan_config_id, configId));
+      }
+      
+      const summaries = await query.orderBy(desc(githubScanSummaries.scan_date));
+      
+      res.json(summaries);
+    } catch (error) {
+      console.error("Error fetching GitHub scan summaries:", error);
+      res.status(500).json({ message: "Failed to fetch scan summaries" });
+    }
+  });
+
+  // Trigger a GitHub scan
+  app.post("/api/github-scan/start", isAuthenticated, async (req, res) => {
+    try {
+      const { configId } = req.body;
+      if (!configId) {
+        return res.status(400).json({ message: "configId is required" });
+      }
+      
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      
+      // Get the scan configuration
+      const [config] = await db.select()
+        .from(githubScanConfigs)
+        .where(and(
+          eq(githubScanConfigs.id, configId),
+          eq(githubScanConfigs.organization_id, organizationId)
+        ));
+      
+      if (!config) {
+        return res.status(404).json({ message: "Scan configuration not found" });
+      }
+      
+      // Update config status to 'scanning'
+      await db.update(githubScanConfigs)
+        .set({ status: 'scanning' })
+        .where(eq(githubScanConfigs.id, configId));
+      
+      // Scan repositories asynchronously
+      scanGitHubRepositories(config).catch(error => {
+        console.error("Error scanning GitHub repositories:", error);
+        // Update status to 'failed' in case of error
+        db.update(githubScanConfigs)
+          .set({ status: 'failed' })
+          .where(eq(githubScanConfigs.id, configId))
+          .then(() => {
+            console.log(`Updated scan status to 'failed' for config ${configId}`);
+          })
+          .catch(err => {
+            console.error("Error updating scan status:", err);
+          });
+      });
+      
+      res.json({ message: "Scan started successfully", configId });
+    } catch (error) {
+      console.error("Error starting GitHub scan:", error);
+      res.status(500).json({ message: "Failed to start scan", error: error.message });
+    }
+  });
+
+  // Add scan result to risk register
+  app.post("/api/github-scan/add-to-risk", isAuthenticated, async (req, res) => {
+    try {
+      const { resultId } = req.body;
+      if (!resultId) {
+        return res.status(400).json({ message: "resultId is required" });
+      }
+      
+      const organizationId = req.user.organization?.id || req.user.organizationId;
+      
+      // Get the scan result
+      const [result] = await db.select()
+        .from(githubScanResults)
+        .where(and(
+          eq(githubScanResults.id, resultId),
+          eq(githubScanResults.organization_id, organizationId)
+        ));
+      
+      if (!result) {
+        return res.status(404).json({ message: "Scan result not found" });
+      }
+      
+      if (result.added_to_risk) {
+        return res.status(400).json({ message: "This result has already been added to the risk register" });
+      }
+      
+      // Create a risk item
+      const [riskItem] = await db.insert(riskItems)
+        .values({
+          title: `AI Usage in ${result.repository_name}`,
+          description: `AI libraries detected: ${result.ai_libraries.join(', ')}. Repository URL: ${result.repository_url}`,
+          risk_level: "medium",
+          risk_type: "operational",
+          status: "open",
+          organization_id: organizationId,
+          created_by: req.user.id,
+          mitigation_plan: "Review AI usage and implement governance controls"
+        })
+        .returning();
+      
+      // Mark the result as added to risk
+      await db.update(githubScanResults)
+        .set({ added_to_risk: true })
+        .where(eq(githubScanResults.id, resultId));
+      
+      res.json({ message: "Added to risk register successfully", riskItemId: riskItem.id });
+    } catch (error) {
+      console.error("Error adding scan result to risk register:", error);
+      res.status(500).json({ message: "Failed to add to risk register", error: error.message });
     }
   });
 

@@ -206,3 +206,99 @@ export type InsertRiskItem = z.infer<typeof insertRiskItemSchema>;
 
 export type ComplianceIssue = typeof complianceIssues.$inferSelect;
 export type InsertComplianceIssue = z.infer<typeof insertComplianceIssueSchema>;
+
+// GitHub Scan Configuration
+export const githubScanConfigs = pgTable("github_scan_configs", {
+  id: serial("id").primaryKey(),
+  organization_id: integer("organization_id").references(() => organizations.id),
+  github_org_name: text("github_org_name").notNull(),
+  api_key: text("api_key").notNull(),
+  created_at: timestamp("created_at").defaultNow(),
+  last_scan_at: timestamp("last_scan_at"),
+  status: text("status").default("idle"),
+});
+
+// GitHub Scan Results
+export const githubScanResults = pgTable("github_scan_results", {
+  id: serial("id").primaryKey(),
+  scan_config_id: integer("scan_config_id").references(() => githubScanConfigs.id),
+  organization_id: integer("organization_id").references(() => organizations.id),
+  repository_name: text("repository_name").notNull(),
+  repository_url: text("repository_url").notNull(),
+  has_ai_usage: boolean("has_ai_usage").default(false),
+  ai_libraries: text("ai_libraries").array(),
+  ai_frameworks: text("ai_frameworks").array(),
+  scan_date: timestamp("scan_date").defaultNow(),
+  added_to_risk: boolean("added_to_risk").default(false),
+});
+
+// GitHub Scan Summary
+export const githubScanSummaries = pgTable("github_scan_summaries", {
+  id: serial("id").primaryKey(),
+  scan_config_id: integer("scan_config_id").references(() => githubScanConfigs.id),
+  organization_id: integer("organization_id").references(() => organizations.id),
+  total_repositories: integer("total_repositories").notNull(),
+  repositories_with_ai: integer("repositories_with_ai").notNull(),
+  scan_date: timestamp("scan_date").defaultNow(),
+});
+
+// Relations
+export const githubScanConfigsRelations = relations(githubScanConfigs, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [githubScanConfigs.organization_id],
+    references: [organizations.id],
+  }),
+  results: many(githubScanResults),
+  summaries: many(githubScanSummaries),
+}));
+
+export const githubScanResultsRelations = relations(githubScanResults, ({ one }) => ({
+  scanConfig: one(githubScanConfigs, {
+    fields: [githubScanResults.scan_config_id],
+    references: [githubScanConfigs.id],
+  }),
+  organization: one(organizations, {
+    fields: [githubScanResults.organization_id],
+    references: [organizations.id],
+  }),
+}));
+
+export const githubScanSummariesRelations = relations(githubScanSummaries, ({ one }) => ({
+  scanConfig: one(githubScanConfigs, {
+    fields: [githubScanSummaries.scan_config_id],
+    references: [githubScanConfigs.id],
+  }),
+  organization: one(organizations, {
+    fields: [githubScanSummaries.organization_id],
+    references: [organizations.id],
+  }),
+}));
+
+// Schemas
+export const insertGithubScanConfigSchema = createInsertSchema(githubScanConfigs).omit({
+  id: true,
+  created_at: true,
+  last_scan_at: true,
+  status: true,
+});
+
+export const insertGithubScanResultSchema = createInsertSchema(githubScanResults).omit({
+  id: true,
+  scan_date: true,
+  added_to_risk: true,
+});
+
+export const insertGithubScanSummarySchema = createInsertSchema(githubScanSummaries).omit({
+  id: true,
+  scan_date: true,
+});
+
+// Types
+export type GithubScanConfig = typeof githubScanConfigs.$inferSelect;
+export type InsertGithubScanConfig = z.infer<typeof insertGithubScanConfigSchema>;
+
+export type GithubScanResult = typeof githubScanResults.$inferSelect;
+export type InsertGithubScanResult = z.infer<typeof insertGithubScanResultSchema>;
+
+export type GithubScanSummary = typeof githubScanSummaries.$inferSelect;
+export type InsertGithubScanSummary = z.infer<typeof insertGithubScanSummarySchema>;
