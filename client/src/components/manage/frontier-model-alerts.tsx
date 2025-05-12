@@ -29,8 +29,9 @@ export function FrontierModelAlerts() {
   // Form states
   const [alertFormData, setAlertFormData] = useState({
     name: '',
-    alert_type: 'security',
-    frontier_model_id: 0
+    alertTypes: ['security'],
+    frontierModelId: 0,
+    alertFrequency: 'daily'
   });
   
   const [modelFormData, setModelFormData] = useState({
