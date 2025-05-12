@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
-import { AuthProvider } from "./hooks/use-auth";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Footer } from "@/components/layout/footer";
 import AuthPage from "./pages/auth-page";
@@ -14,6 +14,19 @@ import MeasurePage from "./pages/measure-page";
 import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
 import AdminPage from "./pages/admin-page";
+
+// Conditionally render the footer based on user permissions
+function ConditionalFooter() {
+  const { user } = useAuth();
+  const isAdmin = user?.role?.permissions?.includes("admin:all");
+  
+  // Only show footer for admin users
+  if (isAdmin) {
+    return <Footer />;
+  }
+  
+  return null;
+}
 
 function Router() {
   return (
@@ -40,7 +53,7 @@ function App() {
             <div className="flex-grow">
               <Router />
             </div>
-            <Footer />
+            <ConditionalFooter />
           </div>
         </TooltipProvider>
       </AuthProvider>
