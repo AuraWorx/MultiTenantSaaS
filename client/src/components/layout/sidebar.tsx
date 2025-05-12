@@ -108,7 +108,7 @@ export function Sidebar() {
           <div className="relative px-4 py-3">
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center justify-between w-full text-sm font-medium text-left text-gray-700 hover:text-gray-900 focus:outline-none">
-                <span className="font-medium text-sm">{user?.organization.name || 'Loading...'}</span>
+                <span className="font-medium text-sm">{user?.organization?.name || 'Loading...'}</span>
                 <ChevronDown className="w-5 h-5 ml-1" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
@@ -135,18 +135,20 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="px-2 py-4 space-y-1">
           {navItems.map(item => (
-            <Link key={item.href} href={item.href}>
-              <a 
-                className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                  location === item.href
-                    ? 'bg-gray-100 text-primary'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                {item.icon}
-                <span className="truncate ml-3">{item.text}</span>
-              </a>
-            </Link>
+            <div key={item.href} className="w-full">
+              <Link href={item.href}>
+                <div 
+                  className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md cursor-pointer ${
+                    location === item.href
+                      ? 'bg-gray-100 text-primary'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  {item.icon}
+                  <span className="truncate ml-3">{item.text}</span>
+                </div>
+              </Link>
+            </div>
           ))}
         </nav>
         

@@ -119,8 +119,12 @@ export function UsersTable({ users, isLoading }: UsersTableProps) {
                         </div>
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.roleId}</TableCell>
-                      <TableCell>{user.organizationId}</TableCell>
+                      <TableCell>
+                        {user.role?.name || `Role ID: ${user.roleId}`}
+                      </TableCell>
+                      <TableCell>
+                        {user.organization?.name || `Org ID: ${user.organizationId}`}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={user.active ? "success" : "secondary"}>
                           {user.active ? 'Active' : 'Inactive'}
