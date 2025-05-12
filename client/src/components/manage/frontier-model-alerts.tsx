@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Bell, BellRing, Plus, ExternalLink, Trash2, Calendar, Info, ShieldAlert, Zap } from 'lucide-react';
+import { Loader2, AlertTriangle, Bell, BellRing, Plus, ExternalLink, Trash2, Calendar, Info, ShieldAlert, Zap, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, getQueryFn, queryClient } from '@/lib/queryClient';
@@ -25,6 +25,7 @@ export function FrontierModelAlerts() {
   const [selectedModel, setSelectedModel] = useState<FrontierModel | null>(null);
   const [createAlertOpen, setCreateAlertOpen] = useState<boolean>(false);
   const [newModelOpen, setNewModelOpen] = useState<boolean>(false);
+  const [isScraping, setIsScraping] = useState<boolean>(false);
   
   // Form states
   const [alertFormData, setAlertFormData] = useState({
@@ -167,6 +168,33 @@ export function FrontierModelAlerts() {
       });
     }
   });
+  
+  const scrapeAllModelsMutation = useMutation({
+    mutationFn: async () => {
+      setIsScraping(true);
+      const res = await apiRequest('POST', '/api/frontier-model-updates/scrape-all');
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate all model data to refresh
+      queryClient.invalidateQueries({ queryKey: ['/api/frontier-models'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/frontier-model-updates'] });
+      
+      toast({
+        title: 'Success',
+        description: `Successfully scraped ${data.count} updates for all models`,
+      });
+      setIsScraping(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: `Failed to scrape all models: ${error.message}`,
+        variant: 'destructive',
+      });
+      setIsScraping(false);
+    }
+  });
 
   // Handlers
   const handleCreateAlert = () => {
@@ -272,10 +300,29 @@ export function FrontierModelAlerts() {
         <h2 className="text-2xl font-bold tracking-tight">Frontier Model Alerts</h2>
         <div className="flex gap-2">
           {isAdmin && (
-            <Button onClick={() => setNewModelOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Model
-            </Button>
+            <>
+              <Button onClick={() => setNewModelOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Model
+              </Button>
+              <Button 
+                onClick={() => scrapeAllModelsMutation.mutate()} 
+                disabled={isScraping || scrapeAllModelsMutation.isPending}
+                variant="outline"
+              >
+                {isScraping || scrapeAllModelsMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Scraping...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Scrape All Models
+                  </>
+                )}
+              </Button>
+            </>
           )}
           <Button onClick={() => setCreateAlertOpen(true)}>
             <BellRing className="mr-2 h-4 w-4" />

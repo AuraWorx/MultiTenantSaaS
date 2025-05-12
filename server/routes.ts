@@ -2007,7 +2007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/frontier-model-alerts/:id", isAuthenticated, async (req, res) => {
     try {
       const alertId = parseInt(req.params.id);
-      const orgId = req.user.organization[0];
+      const orgId = req.user.organization.id;
       
       // Ensure user can only delete their organization's alerts
       const [alert] = await db.select()
@@ -2051,7 +2051,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // This endpoint would be called by a scheduled job to scrape and update frontier model information
+  // This endpoint would be called by a scheduled job or UI button to scrape and update frontier model information
   app.post("/api/frontier-model-updates/scrape/:modelId", isAuthenticated, async (req, res) => {
     try {
       const modelId = parseInt(req.params.modelId);
@@ -2070,13 +2070,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Frontier model not found" });
       }
       
-      // Scrape updates for the model based on provider
-      const updates = await scrapeModelUpdates(model);
+      // Use our new advanced scraper to fetch model updates and persist them to DB
+      const updatesCount = await scrapeAndPersistModelUpdates(modelId);
       
-      // Insert the mock updates
-      await db.insert(frontierModelUpdates).values(updates);
+      res.status(201).json({ 
+        message: "Model updates scraped and stored successfully", 
+        count: updatesCount 
+      });
+    } catch (error) {
+      console.error("Error scraping frontier model updates:", error);
+      res.status(500).json({ message: "Failed to scrape frontier model updates" });
+    }
+  });
+  
+  // New endpoint to trigger scraping for all models at once (for admin use or scheduled cron jobs)
+  app.post("/api/frontier-model-updates/scrape-all", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user is from admin org and has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Only admin users can trigger update scraping" });
+      }
       
-      res.status(201).json({ message: "Model updates scraped and stored", count: updates.length });
+      // Use our scraper to fetch updates for all models
+      const updatesCount = await scrapeAndPersistModelUpdates();
+      
+      res.status(201).json({ 
+        message: "Updates for all models scraped and stored successfully", 
+        count: updatesCount 
+      });
     } catch (error) {
       console.error("Error scraping frontier model updates:", error);
       res.status(500).json({ message: "Failed to scrape frontier model updates" });
