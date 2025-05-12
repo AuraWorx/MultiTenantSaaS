@@ -1078,6 +1078,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Risk Register API Endpoints
+  
+  // Get all risk items for the organization
+  app.get("/api/risk-items", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      const items = await db
+        .select()
+        .from(riskItems)
+        .where(eq(riskItems.organizationId, organizationId))
+        .orderBy(desc(riskItems.createdAt));
+      
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching risk items:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk items", 
+        error: error.message 
+      });
+    }
+  });
+  
   // Bias Analysis API Endpoints
   
   // Get all bias analysis scans for the organization

@@ -9,7 +9,8 @@ import {
   Users,
   ChevronDown,
   LogOut,
-  Shield
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -48,6 +49,7 @@ export function Sidebar() {
     { path: '/map', label: 'Map', icon: <Map className="mr-3 h-5 w-5" /> },
     { path: '/measure', label: 'Measure', icon: <BarChart2 className="mr-3 h-5 w-5" /> },
     { path: '/manage', label: 'Manage', icon: <Settings className="mr-3 h-5 w-5" /> },
+    { path: '/risk-register', label: 'Risk Register', icon: <AlertTriangle className="mr-3 h-5 w-5" /> },
   ];
 
   // Only show admin-specific menu items for users with admin permissions
