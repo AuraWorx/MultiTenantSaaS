@@ -37,7 +37,7 @@ export default function AuthPage() {
       {/* Hero Section */}
       <div className="hidden lg:block w-1/2 bg-gradient-to-tr from-primary-700 to-primary-900 p-12">
         <div className="h-full flex flex-col justify-center max-w-lg mx-auto">
-          <h1 className="text-4xl font-bold mb-6 text-white">
+          <h1 className="text-4xl font-bold mb-6 text-gray-900">
             Responsible AI Governance Made Simple
           </h1>
           <div className="space-y-6">
@@ -46,8 +46,8 @@ export default function AuthPage() {
                 <span className="text-xl">🔍</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl text-white">MAP</h3>
-                <p className="mt-1 text-white">
+                <h3 className="font-medium text-xl text-gray-900">MAP</h3>
+                <p className="mt-1 text-gray-900">
                   Discover and document your AI footprint across the organization
                 </p>
               </div>
@@ -57,8 +57,8 @@ export default function AuthPage() {
                 <span className="text-xl">📊</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl text-white">MEASURE</h3>
-                <p className="mt-1 text-white">
+                <h3 className="font-medium text-xl text-gray-900">MEASURE</h3>
+                <p className="mt-1 text-gray-900">
                   Evaluate compliance, risks, bias, and potential data leaks
                 </p>
               </div>
@@ -68,8 +68,8 @@ export default function AuthPage() {
                 <span className="text-xl">🛠️</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl text-white">MANAGE</h3>
-                <p className="mt-1 text-white">
+                <h3 className="font-medium text-xl text-gray-900">MANAGE</h3>
+                <p className="mt-1 text-gray-900">
                   Take control of your AI governance from development to deployment
                 </p>
               </div>
