@@ -999,8 +999,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a new bias analysis scan
   app.post("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
     try {
-      const organizationId = req.user?.organization?.[0] || 1;
-      const userId = req.user?.id || 2; // Default to demo_user if not found
+      // Get organizationId from the organization property (which is an array in the format [id, name, created_at])
+      const organizationArray = req.user?.organization;
+      const organizationId = organizationArray && Array.isArray(organizationArray) ? organizationArray[0] : 1;
+      
+      // Use the user ID or default to 2 (demo_user)
+      const userId = req.user?.id || 2;
       
       const { name, description, dataSource } = req.body;
       
