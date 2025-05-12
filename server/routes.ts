@@ -621,33 +621,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a new organization (tenant)
   app.post("/api/organizations", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (!req.user || req.user.role.id !== 1) {
-        return res.status(403).json({ message: "Forbidden: Only administrators can create organizations" });
+      // Check if user has admin role
+      if (!req.user.role.permissions.includes('admin:all')) {
+        return res.status(403).json({ message: "Insufficient permissions to create organizations" });
       }
 
-      // Validate organization data
-      const orgData = insertOrganizationSchema.parse(req.body);
+      const { name, template } = req.body;
       
-      // Check if organization already exists
+      if (!name) {
+        return res.status(400).json({ message: "Organization name is required" });
+      }
+      
+      // Check if organization with this name already exists
       const existingOrg = await db.select()
         .from(organizations)
-        .where(eq(organizations.name, orgData.name))
+        .where(eq(organizations.name, name))
         .limit(1);
         
       if (existingOrg.length > 0) {
-        return res.status(400).json({ message: "Organization with this name already exists" });
+        return res.status(400).json({ message: "An organization with this name already exists" });
       }
       
-      // Create organization
-      const [newOrg] = await db.insert(organizations).values(orgData).returning();
+      // Create the organization
+      const [newOrg] = await db.insert(organizations)
+        .values({ name })
+        .returning();
+        
+      // If template is specified, seed the organization with demo data
+      if (template === 'demo') {
+        // Create demo AI systems
+        const [chatbot] = await db.insert(aiSystems).values({
+          name: 'AI Customer Assistant',
+          description: 'Virtual assistant using GPT-4 to handle customer queries',
+          type: 'LLM',
+          location: 'Cloud',
+          organizationId: newOrg.id,
+          createdById: req.user.id,
+        }).returning();
+        
+        const [riskEngine] = await db.insert(aiSystems).values({
+          name: 'Credit Risk Engine',
+          description: 'ML model for credit risk assessment',
+          type: 'Classification',
+          location: 'Internal',
+          organizationId: newOrg.id,
+          createdById: req.user.id,
+        }).returning();
+        
+        // Add some risk items
+        await db.insert(riskItems).values([
+          {
+            title: 'Data Privacy Risk',
+            description: 'Customer data handling concerns in AI assistant',
+            severity: 'high',
+            status: 'open',
+            aiSystemId: chatbot.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          },
+          {
+            title: 'Model Bias Risk',
+            description: 'Potential bias in credit risk model',
+            severity: 'medium',
+            status: 'mitigated',
+            aiSystemId: riskEngine.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          }
+        ]);
+        
+        // Add compliance issues
+        await db.insert(complianceIssues).values([
+          {
+            title: 'GDPR Compliance Gap',
+            description: 'Missing data retention policies',
+            severity: 'high',
+            status: 'open',
+            aiSystemId: chatbot.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          }
+        ]);
+      }
       
       res.status(201).json(newOrg);
     } catch (error) {
       console.error("Error creating organization:", error);
       res.status(500).json({ message: "Failed to create organization" });
+    }
+  });
+
+  // API endpoints for user management
+  app.get("/api/users/admins", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin:all')) {
+        return res.status(403).json({ message: "Forbidden: Insufficient permissions" });
+      }
+
+      // Get all admin users
+      const adminUsers = await db.query.users.findMany({
+        with: {
+          organization: true,
+          role: true
+        },
+        where: (users, { eq }) => eq(users.roleId, 1)
+      });
+      
+      res.json(adminUsers);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch admin users" });
     }
   });
 
