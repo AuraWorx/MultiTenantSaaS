@@ -37,7 +37,7 @@ const AI_LIBRARIES = [
 /**
  * Scan GitHub repositories for AI usage
  */
-async function scanGitHubRepositories(config: any) {
+async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSelect) {
   try {
     console.log(`Starting GitHub scan for ${config.github_org_name}`);
     
@@ -66,8 +66,8 @@ async function scanGitHubRepositories(config: any) {
       
       try {
         // Check package files for AI libraries
-        const aiLibrariesFound = [];
-        const aiFrameworksFound = [];
+        const aiLibrariesFound: string[] = [];
+        const aiFrameworksFound: string[] = [];
         
         // Check package.json for Node.js projects
         try {
@@ -166,7 +166,8 @@ async function scanGitHubRepositories(config: any) {
         console.log(`Completed scan for ${repo.name}, AI usage: ${hasAiUsage}`);
         
       } catch (error) {
-        console.error(`Error scanning repository ${repo.name}:`, error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Error scanning repository ${repo.name}:`, errorMessage);
       }
     }
     
@@ -621,12 +622,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [riskItem] = await db.insert(riskItems)
         .values({
           title: `AI Usage in ${result.repository_name}`,
-          description: `AI libraries detected: ${result.ai_libraries.join(', ')}. Repository URL: ${result.repository_url}`,
+          description: `AI libraries detected: ${result.ai_libraries ? result.ai_libraries.join(', ') : 'None'}. Repository URL: ${result.repository_url}`,
           risk_level: "medium",
           risk_type: "operational",
           status: "open",
           organization_id: organizationId,
-          created_by: req.user.id,
+          created_by_id: req.user?.id || 1,
           mitigation_plan: "Review AI usage and implement governance controls"
         })
         .returning();
