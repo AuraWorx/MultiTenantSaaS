@@ -234,6 +234,12 @@ export function FrontierModelAlerts() {
     return updates.filter(update => update.update_type === 'feature').length;
   };
 
+  const openSourceUrl = (url: string | null) => {
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
   if (isLoadingModels || isLoadingAlerts) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -589,7 +595,7 @@ export function FrontierModelAlerts() {
                                   <Button 
                                     variant="link" 
                                     className="p-0 h-auto"
-                                    onClick={() => window.open(update.source_url, '_blank')}
+                                    onClick={() => openSourceUrl(update.source_url)}
                                   >
                                     Read more <ExternalLink className="ml-1 h-3 w-3" />
                                   </Button>
@@ -636,7 +642,7 @@ export function FrontierModelAlerts() {
                                   <Button 
                                     variant="link" 
                                     className="p-0 h-auto"
-                                    onClick={() => window.open(update.source_url, '_blank')}
+                                    onClick={() => openSourceUrl(update.source_url)}
                                   >
                                     Read more <ExternalLink className="ml-1 h-3 w-3" />
                                   </Button>
