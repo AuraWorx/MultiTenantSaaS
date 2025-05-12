@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
-import { eq, and, count, asc, desc } from "drizzle-orm";
+import { eq, and, count, sum, asc, desc, SQL } from "drizzle-orm";
 import axios from 'axios';
 import { 
   users, 
@@ -15,13 +15,17 @@ import {
   githubScanConfigs,
   githubScanResults,
   githubScanSummaries,
+  biasAnalysisScans,
+  biasAnalysisResults,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
   insertAiSystemSchema,
   insertRiskItemSchema,
   insertComplianceIssueSchema,
-  insertGithubScanConfigSchema 
+  insertGithubScanConfigSchema,
+  insertBiasAnalysisScanSchema,
+  insertBiasAnalysisResultSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
 
@@ -34,8 +38,25 @@ const AI_LIBRARIES = [
   'autodl', 'autogpt', 'mlflow', 'fastai', 'spacy', 'nltk', 'gensim'
 ];
 
+// File patterns that indicate AI/ML model files
+const AI_FILE_PATTERNS = [
+  /\.h5$/, /\.pkl$/, /\.pt$/, /\.onnx$/, /\.pb$/,
+  /_model\..+$/, /\.safetensors$/, /\.joblib$/,
+  /\.ipynb$/ // Jupyter notebooks often contain AI/ML code
+];
+
+// Folder patterns that suggest AI/ML work
+const AI_FOLDER_PATTERNS = [
+  /models\//, /ai\//, /ml\//, /llm\//,
+  /genai\//, /machine-learning\//, /deep-learning\//
+];
+
 /**
  * Scan GitHub repositories for AI usage
+ */
+/**
+ * Scan GitHub repositories for AI usage detection
+ * Based on best practices for detecting AI/ML usage in code repositories
  */
 async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSelect) {
   try {
@@ -43,114 +64,355 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
     
     // Setup GitHub API client
     const apiUrl = `https://api.github.com`;
-    const headers = {
-      'Authorization': `token ${config.api_key}`,
+    const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
       'User-Agent': 'AIGovernancePlatform'
     };
     
-    // Get all repositories for the organization
-    const reposResponse = await axios.get(
-      `${apiUrl}/orgs/${config.github_org_name}/repos?per_page=100`,
-      { headers }
-    );
+    // Add authorization header if API key is provided
+    if (config.api_key) {
+      headers['Authorization'] = `token ${config.api_key}`;
+      console.log('Using GitHub API key for authenticated access');
+    } else {
+      console.log('No GitHub API key provided, using unauthenticated access (rate limits apply)');
+    }
     
-    const repositories = reposResponse.data;
+    let repositories: any[] = [];
+    
+    try {
+      // First try to get organization repositories
+      const orgReposResponse = await axios.get(
+        `${apiUrl}/orgs/${config.github_org_name}/repos?per_page=100`,
+        { headers }
+      );
+      repositories = orgReposResponse.data;
+    } catch (orgError) {
+      console.log(`Not an organization or error accessing org. Trying as user: ${config.github_org_name}`);
+      
+      // If that fails, try as a user
+      try {
+        const userReposResponse = await axios.get(
+          `${apiUrl}/users/${config.github_org_name}/repos?per_page=100`,
+          { headers }
+        );
+        repositories = userReposResponse.data;
+      } catch (userError) {
+        const errMsg = userError instanceof Error ? userError.message : 'Unknown error';
+        console.error(`Failed to access repositories: ${errMsg}`);
+        throw new Error(`Could not access repositories for ${config.github_org_name}`);
+      }
+    }
+    
     console.log(`Found ${repositories.length} repositories for ${config.github_org_name}`);
+    
+    // Update config status to scanning
+    await db.update(githubScanConfigs)
+      .set({ status: 'scanning' })
+      .where(eq(githubScanConfigs.id, config.id));
     
     let reposWithAI = 0;
     
-    // Process each repository
+    // Process each repository with delay to avoid rate limits
     for (const repo of repositories) {
       console.log(`Scanning repository: ${repo.name}`);
       
       try {
-        // Check package files for AI libraries
+        const aiSignals: { 
+          type: string,
+          path: string | null, 
+          details: string, 
+          confidence: number 
+        }[] = [];
+        
         const aiLibrariesFound: string[] = [];
         const aiFrameworksFound: string[] = [];
         
-        // Check package.json for Node.js projects
-        try {
-          const packageJsonResponse = await axios.get(
-            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/package.json`,
-            { headers }
-          );
-          
-          if (packageJsonResponse.status === 200) {
-            const content = Buffer.from(packageJsonResponse.data.content, 'base64').toString();
-            const packageJson = JSON.parse(content);
-            
-            // Check dependencies and devDependencies
-            const dependencies = {
-              ...(packageJson.dependencies || {}),
-              ...(packageJson.devDependencies || {})
-            };
-            
-            // Look for AI libraries
-            for (const [dep, _] of Object.entries(dependencies)) {
-              if (AI_LIBRARIES.some(lib => dep.toLowerCase().includes(lib.toLowerCase()))) {
-                aiLibrariesFound.push(dep);
-              }
-            }
-          }
-        } catch (error) {
-          // Package.json might not exist, continue with other checks
+        // Check repository name and description for AI/ML keywords
+        const repoName = repo.name.toLowerCase();
+        const nameKeywords = AI_LIBRARIES.filter(kw => repoName.includes(kw.toLowerCase()));
+        
+        if (nameKeywords.length > 0) {
+          aiSignals.push({
+            type: 'Repository Name',
+            path: null,
+            details: `Keywords found: ${nameKeywords.join(', ')}`,
+            confidence: 0.6
+          });
         }
         
-        // Check requirements.txt for Python projects
-        try {
-          const requirementsResponse = await axios.get(
-            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/requirements.txt`,
-            { headers }
+        if (repo.description) {
+          const descKeywords = AI_LIBRARIES.filter(kw => 
+            repo.description.toLowerCase().includes(kw.toLowerCase())
           );
           
-          if (requirementsResponse.status === 200) {
-            const content = Buffer.from(requirementsResponse.data.content, 'base64').toString();
-            const requirements = content.split('\n');
-            
-            // Look for AI libraries
-            for (const req of requirements) {
-              const packageName = req.trim().split('==')[0].split('>=')[0].split('<=')[0].trim();
-              if (AI_LIBRARIES.some(lib => packageName.toLowerCase().includes(lib.toLowerCase()))) {
-                aiLibrariesFound.push(packageName);
-              }
-            }
+          if (descKeywords.length > 0) {
+            aiSignals.push({
+              type: 'Repository Description',
+              path: null,
+              details: `Keywords found: ${descKeywords.join(', ')}`,
+              confidence: 0.5
+            });
           }
-        } catch (error) {
-          // requirements.txt might not exist, continue with other checks
         }
         
-        // Search code for AI imports and usage
-        try {
-          const searchResponse = await axios.get(
-            `${apiUrl}/search/code?q=org:${config.github_org_name}+repo:${repo.name}+${AI_LIBRARIES.join('+OR+')}`,
-            { headers }
-          );
-          
-          if (searchResponse.status === 200 && searchResponse.data.items.length > 0) {
-            // Additional AI references found in code
-            for (const item of searchResponse.data.items) {
-              // Extract library name from matched text
-              for (const lib of AI_LIBRARIES) {
-                if (item.name.toLowerCase().includes(lib.toLowerCase()) || 
-                    item.path.toLowerCase().includes(lib.toLowerCase())) {
-                  if (!aiLibrariesFound.includes(lib)) {
-                    aiLibrariesFound.push(lib);
+        // Check dependency files
+        const dependencyFiles = ['package.json', 'requirements.txt', 'environment.yml', 'Pipfile', 'pyproject.toml'];
+        
+        for (const depFile of dependencyFiles) {
+          try {
+            const response = await axios.get(
+              `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/${depFile}`,
+              { headers }
+            );
+            
+            if (response.status === 200) {
+              const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+              
+              // Parse based on file type
+              if (depFile === 'package.json') {
+                try {
+                  const packageJson = JSON.parse(content);
+                  
+                  // Check dependencies and devDependencies
+                  const dependencies = {
+                    ...(packageJson.dependencies || {}),
+                    ...(packageJson.devDependencies || {})
+                  };
+                  
+                  // Look for AI libraries
+                  for (const [dep, version] of Object.entries(dependencies)) {
+                    for (const lib of AI_LIBRARIES) {
+                      if (dep.toLowerCase().includes(lib.toLowerCase())) {
+                        if (!aiLibrariesFound.includes(dep)) {
+                          aiLibrariesFound.push(dep);
+                          aiFrameworksFound.push(`${dep}@${version}`);
+                        }
+                      }
+                    }
+                  }
+                } catch (parseError) {
+                  console.error(`Error parsing package.json for ${repo.name}:`, parseError);
+                }
+              } else {
+                // For requirements.txt and other Python dependency files
+                const lines = content.split('\n');
+                
+                for (const line of lines) {
+                  if (line.trim() && !line.startsWith('#')) {
+                    // Extract package name (strip version info)
+                    const packageName = line.trim().split(/[=><~]/)[0].trim();
+                    
+                    for (const lib of AI_LIBRARIES) {
+                      if (packageName.toLowerCase().includes(lib.toLowerCase())) {
+                        if (!aiLibrariesFound.includes(packageName)) {
+                          aiLibrariesFound.push(packageName);
+                          aiFrameworksFound.push(line.trim());
+                        }
+                      }
+                    }
                   }
                 }
               }
+              
+              if (aiLibrariesFound.length > 0) {
+                aiSignals.push({
+                  type: 'Dependency File',
+                  path: depFile,
+                  details: `AI libraries found in ${depFile}: ${aiLibrariesFound.join(', ')}`,
+                  confidence: 0.9
+                });
+              }
+            }
+          } catch (error) {
+            // File might not exist, continue with other checks
+          }
+        }
+        
+        // Check top-level directory structure
+        try {
+          const contentsResponse = await axios.get(
+            `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents`,
+            { headers }
+          );
+          
+          if (contentsResponse.status === 200) {
+            const contents = contentsResponse.data;
+            const interestingDirs: string[] = [];
+            
+            // First pass: scan top level files and directories
+            for (const item of contents) {
+              if (item.type === 'file') {
+                const fileName = item.name.toLowerCase();
+                const filePath = item.path;
+                
+                // Check for model files - higher confidence detection
+                if (AI_FILE_PATTERNS.some(pattern => pattern.test(fileName))) {
+                  aiSignals.push({
+                    type: 'Model File',
+                    path: filePath,
+                    details: `Model file detected: ${fileName}`,
+                    confidence: 0.9 // High confidence for model files
+                  });
+                }
+                
+                // Check for config files that might indicate AI usage
+                if (fileName === '.env' || fileName.includes('config') || fileName.includes('settings')) {
+                  try {
+                    // For smaller text files, we can check content for API keys
+                    const fileResponse = await axios.get(item.download_url, { headers });
+                    const fileContent = fileResponse.data.toString();
+                    
+                    if (fileContent.includes('OPENAI_API') || 
+                        fileContent.includes('HUGGINGFACE_API') || 
+                        fileContent.includes('GPT_') || 
+                        fileContent.includes('AI_KEY')) {
+                      aiSignals.push({
+                        type: 'API Configuration',
+                        path: filePath,
+                        details: 'AI API configuration detected',
+                        confidence: 0.85
+                      });
+                    }
+                  } catch (fileError) {
+                    // Couldn't read file content, continue
+                  }
+                }
+                
+                // For Jupyter notebooks, try to look at content
+                if (fileName.endsWith('.ipynb')) {
+                  try {
+                    const notebookResponse = await axios.get(item.download_url, { headers });
+                    const notebookContent = JSON.stringify(notebookResponse.data);
+                    
+                    // Check for AI imports
+                    for (const lib of AI_LIBRARIES) {
+                      if (notebookContent.toLowerCase().includes(`import ${lib.toLowerCase()}`) ||
+                          notebookContent.toLowerCase().includes(`from ${lib.toLowerCase()} import`)) {
+                        if (!aiLibrariesFound.includes(lib)) {
+                          aiLibrariesFound.push(lib);
+                        }
+                        
+                        aiSignals.push({
+                          type: 'Notebook Import',
+                          path: filePath,
+                          details: `AI library import: ${lib}`,
+                          confidence: 0.95
+                        });
+                      }
+                    }
+                  } catch (notebookError) {
+                    // Skip notebook content analysis on error
+                  }
+                }
+              } else if (item.type === 'dir') {
+                // Check for AI/ML related directories
+                if (AI_FOLDER_PATTERNS.some(pattern => pattern.test(item.path.toLowerCase()))) {
+                  aiSignals.push({
+                    type: 'AI Directory',
+                    path: item.path,
+                    details: `Directory related to AI/ML: ${item.path}`,
+                    confidence: 0.7
+                  });
+                  
+                  interestingDirs.push(item.path);
+                }
+              }
+            }
+            
+            // Second pass: check interesting directories (limit to avoid rate limits)
+            for (const dir of interestingDirs.slice(0, 3)) {
+              try {
+                const dirResponse = await axios.get(
+                  `${apiUrl}/repos/${config.github_org_name}/${repo.name}/contents/${dir}`,
+                  { headers }
+                );
+                
+                for (const item of dirResponse.data) {
+                  if (item.type === 'file' && 
+                      AI_FILE_PATTERNS.some(pattern => pattern.test(item.name.toLowerCase()))) {
+                    aiSignals.push({
+                      type: 'AI Model in AI Directory',
+                      path: item.path,
+                      details: `AI model file in AI directory: ${item.path}`,
+                      confidence: 0.95
+                    });
+                    
+                    // Add framework flag based on file extension
+                    const ext = item.name.split('.').pop()?.toLowerCase();
+                    if (ext === 'h5' || ext === 'keras') {
+                      if (!aiLibrariesFound.includes('tensorflow')) {
+                        aiLibrariesFound.push('tensorflow');
+                        aiFrameworksFound.push('tensorflow/keras (model files)');
+                      }
+                    } else if (ext === 'pt' || ext === 'pth') {
+                      if (!aiLibrariesFound.includes('pytorch')) {
+                        aiLibrariesFound.push('pytorch');
+                        aiFrameworksFound.push('pytorch (model files)');
+                      }
+                    } else if (ext === 'onnx') {
+                      if (!aiLibrariesFound.includes('onnx')) {
+                        aiLibrariesFound.push('onnx');
+                        aiFrameworksFound.push('onnx (model files)');
+                      }
+                    }
+                  }
+                }
+              } catch (dirError) {
+                // Skip on directory error
+              }
+              
+              // Small delay to avoid API rate limits
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           }
-        } catch (error) {
-          console.error(`Error searching code for ${repo.name}:`, error.message);
+        } catch (contentError) {
+          console.error(`Error fetching repo contents for ${repo.name}:`, contentError);
         }
         
-        // Record results for this repository
-        const hasAiUsage = aiLibrariesFound.length > 0 || aiFrameworksFound.length > 0;
+        // Determine if repo has AI usage and calculate confidence score
+        const hasAiUsage = aiSignals.length > 0 || aiLibrariesFound.length > 0;
+        
+        // Calculate confidence score (0-100) based on signals
+        let confidenceScore = 0;
+        let primaryDetectionType = '';
         
         if (hasAiUsage) {
+          // Sort signals by confidence (highest first)
+          const sortedSignals = [...aiSignals].sort((a, b) => b.confidence - a.confidence);
+          
+          if (sortedSignals.length > 0) {
+            // Use the highest confidence as the base
+            const highestConfidence = sortedSignals[0].confidence;
+            primaryDetectionType = sortedSignals[0].type;
+            
+            // Adjust score based on number of signals and their confidence
+            confidenceScore = Math.round(highestConfidence * 100);
+            
+            // Boost confidence if multiple signals
+            if (sortedSignals.length > 1) {
+              confidenceScore = Math.min(100, confidenceScore + 5 * (sortedSignals.length - 1));
+            }
+            
+            // Boost confidence if libraries are found
+            if (aiLibrariesFound.length > 0) {
+              confidenceScore = Math.min(100, confidenceScore + 10);
+            }
+          } else if (aiLibrariesFound.length > 0) {
+            // If only libraries are found but no signals
+            confidenceScore = 85;
+            primaryDetectionType = 'Library Detection';
+          }
+          
           reposWithAI++;
+          
+          // Log AI findings with confidence score
+          console.log(`AI usage detected in ${repo.name} (${confidenceScore}% confidence):`);
+          console.log(`- Libraries: ${aiLibrariesFound.join(', ')}`);
+          console.log(`- Signals: ${aiSignals.map(s => s.type).join(', ')}`);
         }
+        
+        // Create a list of unique libraries
+        const uniqueLibraries = Array.from(new Set(aiLibrariesFound));
         
         // Save repository scan result to database
         await db.insert(githubScanResults).values({
@@ -159,14 +421,17 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
           repository_name: repo.name,
           repository_url: repo.html_url,
           has_ai_usage: hasAiUsage,
-          ai_libraries: aiLibrariesFound,
-          ai_frameworks: aiFrameworksFound
+          ai_libraries: uniqueLibraries,
+          ai_frameworks: aiFrameworksFound.slice(0, 10), // Limit to avoid DB size issues
+          confidence_score: confidenceScore,
+          detection_type: primaryDetectionType
         });
         
-        console.log(`Completed scan for ${repo.name}, AI usage: ${hasAiUsage}`);
+        // Pause to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      } catch (repoError) {
+        const errorMessage = repoError instanceof Error ? repoError.message : 'Unknown error';
         console.error(`Error scanning repository ${repo.name}:`, errorMessage);
       }
     }
@@ -188,9 +453,11 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
       .where(eq(githubScanConfigs.id, config.id));
     
     console.log(`GitHub scan completed for ${config.github_org_name}`);
+    console.log(`Found ${reposWithAI} out of ${repositories.length} repositories using AI`);
     
   } catch (error) {
-    console.error("GitHub scan failed:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error("GitHub scan failed:", errorMessage);
     
     // Update config with error status
     await db.update(githubScanConfigs)
@@ -500,8 +767,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GitHub Scan Results
   app.get("/api/github-scan/results", isAuthenticated, async (req, res) => {
     try {
-      const organizationId = req.user.organization?.id || req.user.organizationId;
+      // Extract organization ID from user object based on structure from the auth module
+      const organizationId = req.user?.organization?.[0] || 1; // Default to org ID 1 if not found
       const configId = req.query.configId ? parseInt(req.query.configId as string) : undefined;
+      
+      console.log(`Fetching scan results for org: ${organizationId}, configId: ${configId || 'all'}`);
       
       let query = db.select()
         .from(githubScanResults)
@@ -513,7 +783,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const results = await query.orderBy(desc(githubScanResults.scan_date));
       
-      res.json(results);
+      // Transform results to match the component's expected format
+      const transformedResults = results.map(result => ({
+        id: result.id,
+        scan_config_id: result.scan_config_id,
+        repository_name: result.repository_name,
+        repository_url: result.repository_url,
+        has_ai_usage: result.has_ai_usage,
+        ai_libraries: Array.isArray(result.ai_libraries) ? result.ai_libraries : [],
+        ai_frameworks: Array.isArray(result.ai_frameworks) ? result.ai_frameworks : [],
+        scan_date: result.scan_date,
+        added_to_risk: result.added_to_risk,
+        confidence_score: result.confidence_score !== null ? result.confidence_score : 0,
+        detection_type: result.detection_type || ''
+      }));
+      
+      console.log(`Found ${transformedResults.length} scan results`);
+      res.json(transformedResults);
     } catch (error) {
       console.error("Error fetching GitHub scan results:", error);
       res.status(500).json({ message: "Failed to fetch scan results" });
@@ -643,6 +929,386 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to add to risk register", error: error.message });
     }
   });
+
+  // Bias Analysis API Endpoints
+  
+  // Get all bias analysis scans for the organization
+  app.get("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
+    try {
+      // Extract organization ID from user object based on structure from the auth module
+      const organizationId = req.user?.organization?.[0] || 1; // Default to org ID 1 if not found
+      
+      const scans = await db.select()
+        .from(biasAnalysisScans)
+        .where(eq(biasAnalysisScans.organizationId, organizationId))
+        .orderBy(desc(biasAnalysisScans.startedAt));
+      
+      res.json(scans);
+    } catch (error) {
+      console.error("Error fetching bias analysis scans:", error);
+      res.status(500).json({ message: "Failed to fetch bias analysis scans" });
+    }
+  });
+  
+  // Get a specific bias analysis scan with its results
+  app.get("/api/bias-analysis/scans/:scanId", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the scan
+      const [scan] = await db.select()
+        .from(biasAnalysisScans)
+        .where(
+          and(
+            eq(biasAnalysisScans.id, scanId),
+            eq(biasAnalysisScans.organizationId, organizationId)
+          )
+        );
+      
+      if (!scan) {
+        return res.status(404).json({ message: "Bias analysis scan not found" });
+      }
+      
+      // Get the results
+      const results = await db.select()
+        .from(biasAnalysisResults)
+        .where(eq(biasAnalysisResults.scanId, scanId))
+        .orderBy(asc(biasAnalysisResults.metricName));
+      
+      // Group results by demographic group
+      const resultsByGroup = {};
+      results.forEach(result => {
+        const group = result.demographicGroup || "overall";
+        if (!resultsByGroup[group]) {
+          resultsByGroup[group] = [];
+        }
+        resultsByGroup[group].push(result);
+      });
+      
+      res.json({
+        scan,
+        resultsByGroup
+      });
+    } catch (error) {
+      console.error("Error fetching bias analysis scan:", error);
+      res.status(500).json({ message: "Failed to fetch bias analysis scan details" });
+    }
+  });
+  
+  // Create a new bias analysis scan
+  app.post("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
+    try {
+      // Get organizationId from the organization property (which is an array in the format [id, name, created_at])
+      const organizationArray = req.user?.organization;
+      const organizationId = organizationArray && Array.isArray(organizationArray) ? organizationArray[0] : 1;
+      
+      // Use the user ID or default to 2 (demo_user)
+      const userId = req.user?.id || 2;
+      
+      const { name, description, dataSource } = req.body;
+      
+      if (!name || !dataSource) {
+        return res.status(400).json({ message: "Name and data source are required" });
+      }
+      
+      // Create the scan
+      const [scan] = await db.insert(biasAnalysisScans)
+        .values({
+          name,
+          description: description || null,
+          dataSource,
+          status: "pending",
+          organizationId,
+          createdBy: userId
+        })
+        .returning();
+      
+      res.status(201).json(scan);
+    } catch (error) {
+      console.error("Error creating bias analysis scan:", error);
+      res.status(500).json({ message: "Failed to create bias analysis scan" });
+    }
+  });
+  
+  // Process a bias analysis scan (CSV/JSON upload or webhook data)
+  app.post("/api/bias-analysis/scans/:scanId/process", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the scan
+      const [scan] = await db.select()
+        .from(biasAnalysisScans)
+        .where(
+          and(
+            eq(biasAnalysisScans.id, scanId),
+            eq(biasAnalysisScans.organizationId, organizationId)
+          )
+        );
+      
+      if (!scan) {
+        return res.status(404).json({ message: "Bias analysis scan not found" });
+      }
+      
+      if (scan.status !== "pending") {
+        return res.status(400).json({ message: "Can only process scans in pending status" });
+      }
+      
+      // Update scan to processing status
+      await db.update(biasAnalysisScans)
+        .set({ status: "processing" })
+        .where(eq(biasAnalysisScans.id, scanId));
+      
+      // Determine the data source and how to process it
+      let dataToAnalyze = null;
+      
+      if (scan.dataSource === "json") {
+        // Use fileData for json data
+        if (!req.body.fileData) {
+          return res.status(400).json({ message: "JSON data is required" });
+        }
+        
+        try {
+          // Try to parse the JSON data
+          if (typeof req.body.fileData === 'string') {
+            // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
+            if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
+              return res.status(400).json({ message: "Invalid JSON format. Uploaded file appears to be HTML." });
+            }
+            
+            dataToAnalyze = JSON.parse(req.body.fileData);
+          } else {
+            dataToAnalyze = req.body.fileData;
+          }
+        } catch (error) {
+          console.error("Error parsing JSON:", error);
+          return res.status(400).json({ 
+            message: `Invalid JSON format: ${error.message}` 
+          });
+        }
+      } else if (scan.dataSource === "csv") {
+        if (!req.body.fileData) {
+          return res.status(400).json({ message: "CSV data is required" });
+        }
+        
+        try {
+          // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
+          if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
+            return res.status(400).json({ message: "Invalid CSV format. Uploaded file appears to be HTML." });
+          }
+          
+          // Convert CSV to JSON
+          const csvData = req.body.fileData;
+          // Simple CSV parsing (for production, use a proper CSV parser)
+          const lines = csvData.split("\n");
+          
+          if (lines.length === 0) {
+            return res.status(400).json({ message: "CSV data is empty" });
+          }
+          
+          const headers = lines[0].split(",").map(h => h.trim());
+          dataToAnalyze = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const values = line.split(",").map(v => v.trim());
+            const dataRow = {};
+            
+            headers.forEach((header, idx) => {
+              dataRow[header] = values[idx] || null;
+            });
+            
+            dataToAnalyze.push(dataRow);
+          }
+          
+          if (dataToAnalyze.length === 0) {
+            return res.status(400).json({ message: "No valid data rows found in CSV" });
+          }
+        } catch (error) {
+          console.error("Error parsing CSV:", error);
+          return res.status(400).json({ 
+            message: `Invalid CSV format: ${error.message}` 
+          });
+        }
+      } else if (scan.dataSource === "webhook") {
+        // For webhook data source, we need a webhook URL
+        if (!req.body.webhookUrl) {
+          return res.status(400).json({ message: "Webhook URL is required" });
+        }
+        
+        try {
+          // Use the webhook URL to fetch data
+          const webhookResponse = await fetch(req.body.webhookUrl);
+          
+          if (!webhookResponse.ok) {
+            return res.status(400).json({ 
+              message: `Failed to fetch data from webhook: ${webhookResponse.statusText}` 
+            });
+          }
+          
+          // Try to parse the webhook response as JSON
+          const webhookData = await webhookResponse.json();
+          dataToAnalyze = webhookData;
+        } catch (error) {
+          console.error("Error fetching from webhook:", error);
+          return res.status(400).json({ 
+            message: `Error fetching from webhook: ${error.message}` 
+          });
+        }
+      }
+      
+      if (!dataToAnalyze || (Array.isArray(dataToAnalyze) && dataToAnalyze.length === 0)) {
+        await db.update(biasAnalysisScans)
+          .set({ status: "failed", completedAt: new Date() })
+          .where(eq(biasAnalysisScans.id, scanId));
+          
+        return res.status(400).json({ message: "No data to analyze" });
+      }
+      
+      // For demonstration, we'll perform bias analysis on the data
+      // In production, this would be a more sophisticated algorithm
+      const biasResults = await analyzeBiasInData(dataToAnalyze, scanId, organizationId);
+      
+      // Update scan to completed status
+      await db.update(biasAnalysisScans)
+        .set({ status: "completed", completedAt: new Date() })
+        .where(eq(biasAnalysisScans.id, scanId));
+      
+      res.json({
+        message: "Bias analysis completed successfully",
+        scanId,
+        resultCount: biasResults.length
+      });
+    } catch (error) {
+      console.error("Error processing bias analysis:", error);
+      
+      // Update scan to failed status
+      await db.update(biasAnalysisScans)
+        .set({ status: "failed", completedAt: new Date() })
+        .where(eq(biasAnalysisScans.id, parseInt(req.params.scanId)));
+        
+      res.status(500).json({ message: "Failed to process bias analysis" });
+    }
+  });
+  
+  // Bias analysis function
+  async function analyzeBiasInData(data, scanId, organizationId) {
+    // This is a simplified bias analysis algorithm
+    // In a real system, this would use proper statistical methods and ML techniques
+    
+    const results = [];
+    
+    // Add a gender bias test
+    if (Array.isArray(data) && data.length > 0) {
+      // Check if we have gender data
+      const hasGenderField = data.some(row => 
+        row.gender || row.Gender || row.sex || row.Sex || 
+        Object.keys(row).some(key => key.toLowerCase().includes('gender') || key.toLowerCase().includes('sex'))
+      );
+      
+      if (hasGenderField) {
+        // Group by gender
+        const genderGroups = {};
+        const genderKey = Object.keys(data[0]).find(k => 
+          k.toLowerCase().includes('gender') || k.toLowerCase().includes('sex')
+        ) || 'gender';
+        
+        data.forEach(row => {
+          const gender = (row[genderKey] || 'unknown').toLowerCase();
+          if (!genderGroups[gender]) {
+            genderGroups[gender] = 0;
+          }
+          genderGroups[gender]++;
+        });
+        
+        // Calculate gender distribution
+        const totalCount = Object.values(genderGroups).reduce((sum, count) => sum + count, 0);
+        const genders = Object.keys(genderGroups);
+        
+        // Check for representation bias
+        if (genders.length > 1) {
+          const percentages = {};
+          let maxPct = 0;
+          let minPct = 100;
+          
+          genders.forEach(gender => {
+            const pct = (genderGroups[gender] / totalCount) * 100;
+            percentages[gender] = pct;
+            maxPct = Math.max(maxPct, pct);
+            minPct = Math.min(minPct, pct);
+          });
+          
+          // Calculate bias score based on difference between max and min percentages
+          const balanceScore = 100 - Math.min(100, (maxPct - minPct) * 2);
+          
+          // Add a result for gender representation bias
+          const genderResult = {
+            scanId,
+            organizationId,
+            metricName: "Gender Representation",
+            metricDescription: "Measures balance in gender representation across the dataset",
+            score: balanceScore,
+            threshold: 70, // Threshold for passing
+            status: balanceScore >= 70 ? "pass" : balanceScore >= 50 ? "warning" : "fail",
+            demographicGroup: "overall",
+            additionalData: JSON.stringify({ 
+              percentages,
+              totalSamples: totalCount 
+            })
+          };
+          
+          results.push(genderResult);
+          
+          // Save the result to the database
+          await db.insert(biasAnalysisResults).values(genderResult);
+        }
+      }
+      
+      // Add other bias checks like age, ethnicity, etc. following similar patterns
+      // ...
+      
+      // Example: Add a data completeness metric
+      let totalFields = 0;
+      let emptyFields = 0;
+      
+      data.forEach(row => {
+        Object.values(row).forEach(value => {
+          totalFields++;
+          if (value === null || value === undefined || value === "") {
+            emptyFields++;
+          }
+        });
+      });
+      
+      const completenessScore = 100 - Math.min(100, (emptyFields / totalFields) * 100);
+      
+      const completenessResult = {
+        scanId,
+        organizationId,
+        metricName: "Data Completeness",
+        metricDescription: "Measures the completeness of the dataset, which can impact bias",
+        score: completenessScore,
+        threshold: 80,
+        status: completenessScore >= 80 ? "pass" : completenessScore >= 60 ? "warning" : "fail",
+        demographicGroup: "overall",
+        additionalData: JSON.stringify({
+          totalFields,
+          emptyFields,
+          completenessRate: ((totalFields - emptyFields) / totalFields).toFixed(2)
+        })
+      };
+      
+      results.push(completenessResult);
+      
+      // Save the result to the database
+      await db.insert(biasAnalysisResults).values(completenessResult);
+    }
+    
+    return results;
+  }
 
   const httpServer = createServer(app);
 

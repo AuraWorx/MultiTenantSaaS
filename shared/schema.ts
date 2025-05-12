@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -228,6 +228,8 @@ export const githubScanResults = pgTable("github_scan_results", {
   has_ai_usage: boolean("has_ai_usage").default(false),
   ai_libraries: text("ai_libraries").array(),
   ai_frameworks: text("ai_frameworks").array(),
+  confidence_score: integer("confidence_score"),
+  detection_type: text("detection_type"),
   scan_date: timestamp("scan_date").defaultNow(),
   added_to_risk: boolean("added_to_risk").default(false),
 });
@@ -302,3 +304,81 @@ export type InsertGithubScanResult = z.infer<typeof insertGithubScanResultSchema
 
 export type GithubScanSummary = typeof githubScanSummaries.$inferSelect;
 export type InsertGithubScanSummary = z.infer<typeof insertGithubScanSummarySchema>;
+
+// Bias Analysis
+export const biasAnalysisScans = pgTable("bias_analysis_scans", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  dataSource: text("data_source").notNull(), // 'csv', 'json', 'webhook'
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  createdBy: integer("created_by")
+    .notNull()
+    .references(() => users.id),
+});
+
+export const biasAnalysisResults = pgTable("bias_analysis_results", {
+  id: serial("id").primaryKey(),
+  scanId: integer("scan_id")
+    .notNull()
+    .references(() => biasAnalysisScans.id),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  metricName: text("metric_name").notNull(),
+  metricDescription: text("metric_description"),
+  score: integer("score").notNull(), // 0-100 score
+  threshold: integer("threshold").notNull(), // Threshold for passing/failing
+  status: text("status").notNull(), // 'pass', 'warning', 'fail'
+  demographicGroup: text("demographic_group"), // Which demographic group this applies to
+  additionalData: text("additional_data"), // JSON string with additional metric data
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Relations
+export const biasAnalysisScansRelations = relations(biasAnalysisScans, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [biasAnalysisScans.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [biasAnalysisScans.createdBy],
+    references: [users.id],
+  }),
+  results: many(biasAnalysisResults),
+}));
+
+export const biasAnalysisResultsRelations = relations(biasAnalysisResults, ({ one }) => ({
+  scan: one(biasAnalysisScans, {
+    fields: [biasAnalysisResults.scanId],
+    references: [biasAnalysisScans.id],
+  }),
+  organization: one(organizations, {
+    fields: [biasAnalysisResults.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+// Insert Schemas
+export const insertBiasAnalysisScanSchema = createInsertSchema(biasAnalysisScans).omit({
+  id: true,
+  startedAt: true,
+  completedAt: true,
+});
+
+export const insertBiasAnalysisResultSchema = createInsertSchema(biasAnalysisResults).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type BiasAnalysisScan = typeof biasAnalysisScans.$inferSelect;
+export type InsertBiasAnalysisScan = z.infer<typeof insertBiasAnalysisScanSchema>;
+
+export type BiasAnalysisResult = typeof biasAnalysisResults.$inferSelect;
+export type InsertBiasAnalysisResult = z.infer<typeof insertBiasAnalysisResultSchema>;
