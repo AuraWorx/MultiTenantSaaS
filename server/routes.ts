@@ -1011,16 +1011,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "This result has already been added to the risk register" });
       }
       
+      // First, check if we have any AI system available for this organization
+      const aiSystemsList = await db.select()
+        .from(aiSystems)
+        .where(eq(aiSystems.organizationId, organizationId))
+        .limit(1);
+
+      // If no AI system exists, create a default one
+      let aiSystemId = 1; // Default
+      if (aiSystemsList.length === 0) {
+        const [newSystem] = await db.insert(aiSystems)
+          .values({
+            name: 'GitHub Repository AI System',
+            description: 'Automatically created system for tracking AI in repositories',
+            type: 'Repository',
+            location: 'Internal',
+            organizationId: organizationId,
+            createdById: req.user?.id || 1,
+          })
+          .returning();
+          
+        aiSystemId = newSystem.id;
+      } else {
+        aiSystemId = aiSystemsList[0].id;
+      }
+
       // Create a risk item
       const [riskItem] = await db.insert(riskItems)
         .values({
           title: `AI Usage in ${result.repository_name}`,
           description: `AI libraries detected: ${result.ai_libraries ? result.ai_libraries.join(', ') : 'None'}. Repository URL: ${result.repository_url}`,
-          severity: "medium", // Changed from risk_level to severity
+          severity: "medium",
           status: "open",
-          aiSystemId: 1, // Using default system ID
-          organizationId: organizationId, // Changed from organization_id
-          createdById: req.user?.id || 1, // Changed from created_by_id
+          aiSystemId: aiSystemId,
+          organizationId: organizationId,
+          createdById: req.user?.id || 1,
         })
         .returning();
       
