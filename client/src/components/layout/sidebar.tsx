@@ -56,13 +56,7 @@ export function Sidebar() {
   if (user?.role.permissions?.includes('admin') || user?.role.permissions?.includes('manage_users') || user?.role.permissions?.includes('manage_organizations')) {
     menuItems.push({ 
       path: '/users', 
-      label: 'User Management', 
-      icon: <Users className="mr-3 h-5 w-5" /> 
-    });
-    
-    menuItems.push({ 
-      path: '/admin', 
-      label: 'Administration', 
+      label: 'Platform Admin', 
       icon: <Shield className="mr-3 h-5 w-5" /> 
     });
   }
