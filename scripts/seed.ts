@@ -2,7 +2,8 @@ import { randomBytes, scryptSync } from 'crypto';
 import {
   users, organizations, roles, aiSystems, riskItems, complianceIssues,
   githubScanConfigs, githubScanResults, githubScanSummaries,
-  biasAnalysisScans, biasAnalysisResults
+  biasAnalysisScans, biasAnalysisResults, frontierModels,
+  frontierModelAlerts, frontierModelUpdates
 } from '@shared/schema';
 import { db, pool } from '../server/db';
 
@@ -26,6 +27,9 @@ async function seed() {
     await db.delete(githubScanResults);
     await db.delete(githubScanSummaries);
     await db.delete(githubScanConfigs);
+    await db.delete(frontierModelUpdates);
+    await db.delete(frontierModelAlerts);
+    await db.delete(frontierModels);
     await db.delete(users);
     await db.delete(roles);
     await db.delete(organizations);
@@ -390,6 +394,118 @@ async function seed() {
         recommendedActions: 'Remove zip code as a factor in lending decisions',
         organizationId: adminOrg.id,
       },
+    ]);
+    
+    // Create frontier models
+    console.log('Creating frontier models...');
+    const [gpt4] = await db.insert(frontierModels).values({
+      name: 'GPT-4o',
+      provider: 'OpenAI',
+      releaseDate: new Date('2024-05-13'),
+      description: 'The newest multimodal model from OpenAI with advanced reasoning and vision capabilities.',
+      category: 'large language model',
+      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
+      riskLevel: 'medium',
+      createdAt: new Date()
+    }).returning();
+    
+    const [claude3] = await db.insert(frontierModels).values({
+      name: 'Claude 3 Opus',
+      provider: 'Anthropic',
+      releaseDate: new Date('2024-03-04'),
+      description: 'Anthropic\'s most powerful multimodal model with state-of-the-art performance.',
+      category: 'large language model',
+      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
+      riskLevel: 'medium',
+      createdAt: new Date()
+    }).returning();
+    
+    const [gemini] = await db.insert(frontierModels).values({
+      name: 'Gemini 1.5 Pro',
+      provider: 'Google',
+      releaseDate: new Date('2024-02-15'),
+      description: 'Google\'s multimodal model with long context window and reasoning capabilities.',
+      category: 'large language model',
+      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
+      riskLevel: 'medium',
+      createdAt: new Date()
+    }).returning();
+    
+    const [llama3] = await db.insert(frontierModels).values({
+      name: 'Llama 3',
+      provider: 'Meta',
+      releaseDate: new Date('2024-04-18'),
+      description: 'Meta\'s open source large language model with strong performance.',
+      category: 'large language model',
+      capabilities: ['text generation', 'reasoning', 'coding'],
+      riskLevel: 'low',
+      createdAt: new Date()
+    }).returning();
+    
+    // Create model alerts
+    console.log('Creating model alerts...');
+    await db.insert(frontierModelAlerts).values([
+      {
+        userId: adminUser.id,
+        organizationId: adminOrg.id,
+        frontierModelId: gpt4.id,
+        alertFrequency: 'daily',
+        alertTypes: ['security', 'feature'],
+        createdAt: new Date()
+      },
+      {
+        userId: demoUser.id,
+        organizationId: auraWorx.id,
+        frontierModelId: claude3.id,
+        alertFrequency: 'weekly',
+        alertTypes: ['security', 'feature'],
+        createdAt: new Date()
+      },
+      {
+        userId: demoUser.id,
+        organizationId: auraWorx.id,
+        frontierModelId: gpt4.id,
+        alertFrequency: 'daily',
+        alertTypes: ['security'],
+        createdAt: new Date()
+      }
+    ]);
+    
+    // Create model updates
+    console.log('Creating model updates...');
+    await db.insert(frontierModelUpdates).values([
+      {
+        frontierModelId: gpt4.id,
+        title: 'Security Update: Enhanced Input Filtering',
+        description: 'Improved security measures for filtering potentially harmful inputs and enhancing user data protection.',
+        updateType: 'security',
+        sourceUrl: 'https://openai.com/blog/security-update-may-2024',
+        updateDate: new Date('2024-05-10')
+      },
+      {
+        frontierModelId: gpt4.id,
+        title: 'Feature Update: Improved Vision Capabilities',
+        description: 'Enhanced vision model with improved accuracy for image recognition and understanding complex diagrams.',
+        updateType: 'feature',
+        sourceUrl: 'https://openai.com/blog/gpt4o-vision-improvements',
+        updateDate: new Date('2024-05-05')
+      },
+      {
+        frontierModelId: claude3.id,
+        title: 'Security Update: Privacy Protections',
+        description: 'Strengthened privacy protections and enhanced data handling protocols.',
+        updateType: 'security',
+        sourceUrl: 'https://www.anthropic.com/blog/privacy-update-2024',
+        updateDate: new Date('2024-04-22')
+      },
+      {
+        frontierModelId: claude3.id,
+        title: 'Feature Update: Expanded Knowledge Cutoff',
+        description: 'Knowledge cutoff extended with more recent information and improved factual accuracy.',
+        updateType: 'feature',
+        sourceUrl: 'https://www.anthropic.com/blog/claude-knowledge-update',
+        updateDate: new Date('2024-04-18')
+      }
     ]);
 
     console.log('Database seed completed successfully!');
