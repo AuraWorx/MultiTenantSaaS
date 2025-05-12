@@ -584,30 +584,33 @@ export function BiasAnalysis() {
                 )}
               </div>
             </CardContent>
-            <CardFooter>
-              <Button 
-                className="w-full" 
-                onClick={handleStartAnalysis}
-                disabled={
-                  !scanName || 
-                  createScanMutation.isPending || 
-                  processScanMutation.isPending ||
-                  (selectedDataSource !== 'webhook' && !fileData) ||
-                  (selectedDataSource === 'webhook' && !testDataUrl)
-                }
-              >
-                {createScanMutation.isPending || processScanMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {createScanMutation.isPending ? 'Creating scan...' : 'Processing data...'}
-                  </>
-                ) : (
-                  <>
-                    <BarChart4 className="mr-2 h-4 w-4" />
-                    Start Analysis
-                  </>
-                )}
-              </Button>
+            <CardFooter className="pt-6 pb-8">
+              <div className="w-full flex justify-center">
+                <Button 
+                  size="lg"
+                  className="px-8 py-6 text-lg font-medium" 
+                  onClick={handleStartAnalysis}
+                  disabled={
+                    !scanName || 
+                    createScanMutation.isPending || 
+                    processScanMutation.isPending ||
+                    (selectedDataSource !== 'webhook' && !fileData) ||
+                    (selectedDataSource === 'webhook' && !testDataUrl)
+                  }
+                >
+                  {createScanMutation.isPending || processScanMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      {createScanMutation.isPending ? 'Creating scan...' : 'Processing data...'}
+                    </>
+                  ) : (
+                    <>
+                      <BarChart4 className="mr-2 h-5 w-5" />
+                      Start Analysis
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardFooter>
           </Card>
           

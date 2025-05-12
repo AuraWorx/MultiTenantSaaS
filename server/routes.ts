@@ -1032,7 +1032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Process a bias analysis scan (CSV/JSON upload or webhook data)
-  app.post("/api/bias-analysis/process/:scanId", isAuthenticated, async (req, res) => {
+  app.post("/api/bias-analysis/scans/:scanId/process", isAuthenticated, async (req, res) => {
     try {
       const scanId = parseInt(req.params.scanId);
       const organizationId = req.user?.organization?.[0] || 1;
@@ -1064,37 +1064,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let dataToAnalyze = null;
       
       if (scan.dataSource === "json") {
-        if (!req.body.data) {
+        // Use fileData for json data
+        if (!req.body.fileData) {
           return res.status(400).json({ message: "JSON data is required" });
         }
-        dataToAnalyze = req.body.data;
+        
+        try {
+          // Try to parse the JSON data
+          if (typeof req.body.fileData === 'string') {
+            // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
+            if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
+              return res.status(400).json({ message: "Invalid JSON format. Uploaded file appears to be HTML." });
+            }
+            
+            dataToAnalyze = JSON.parse(req.body.fileData);
+          } else {
+            dataToAnalyze = req.body.fileData;
+          }
+        } catch (error) {
+          console.error("Error parsing JSON:", error);
+          return res.status(400).json({ 
+            message: `Invalid JSON format: ${error.message}` 
+          });
+        }
       } else if (scan.dataSource === "csv") {
-        if (!req.body.csvData) {
+        if (!req.body.fileData) {
           return res.status(400).json({ message: "CSV data is required" });
         }
-        // Convert CSV to JSON
-        const csvData = req.body.csvData;
-        // Simple CSV parsing (for production, use a proper CSV parser)
-        const lines = csvData.split("\n");
-        const headers = lines[0].split(",").map(h => h.trim());
-        dataToAnalyze = [];
         
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (!line) continue;
+        try {
+          // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
+          if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
+            return res.status(400).json({ message: "Invalid CSV format. Uploaded file appears to be HTML." });
+          }
           
-          const values = line.split(",").map(v => v.trim());
-          const dataRow = {};
+          // Convert CSV to JSON
+          const csvData = req.body.fileData;
+          // Simple CSV parsing (for production, use a proper CSV parser)
+          const lines = csvData.split("\n");
           
-          headers.forEach((header, idx) => {
-            dataRow[header] = values[idx] || null;
+          if (lines.length === 0) {
+            return res.status(400).json({ message: "CSV data is empty" });
+          }
+          
+          const headers = lines[0].split(",").map(h => h.trim());
+          dataToAnalyze = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            const values = line.split(",").map(v => v.trim());
+            const dataRow = {};
+            
+            headers.forEach((header, idx) => {
+              dataRow[header] = values[idx] || null;
+            });
+            
+            dataToAnalyze.push(dataRow);
+          }
+          
+          if (dataToAnalyze.length === 0) {
+            return res.status(400).json({ message: "No valid data rows found in CSV" });
+          }
+        } catch (error) {
+          console.error("Error parsing CSV:", error);
+          return res.status(400).json({ 
+            message: `Invalid CSV format: ${error.message}` 
           });
-          
-          dataToAnalyze.push(dataRow);
         }
       } else if (scan.dataSource === "webhook") {
-        // For webhook data, just use the raw request body
-        dataToAnalyze = req.body;
+        // For webhook data source, we need a webhook URL
+        if (!req.body.webhookUrl) {
+          return res.status(400).json({ message: "Webhook URL is required" });
+        }
+        
+        try {
+          // Use the webhook URL to fetch data
+          const webhookResponse = await fetch(req.body.webhookUrl);
+          
+          if (!webhookResponse.ok) {
+            return res.status(400).json({ 
+              message: `Failed to fetch data from webhook: ${webhookResponse.statusText}` 
+            });
+          }
+          
+          // Try to parse the webhook response as JSON
+          const webhookData = await webhookResponse.json();
+          dataToAnalyze = webhookData;
+        } catch (error) {
+          console.error("Error fetching from webhook:", error);
+          return res.status(400).json({ 
+            message: `Error fetching from webhook: ${error.message}` 
+          });
+        }
       }
       
       if (!dataToAnalyze || (Array.isArray(dataToAnalyze) && dataToAnalyze.length === 0)) {
