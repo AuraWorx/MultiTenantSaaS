@@ -6,6 +6,7 @@ import { db } from "./db";
 import { eq, and, count, sum, asc, desc, SQL, sql } from "drizzle-orm";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { scrapeAndPersistModelUpdates } from "./scraper";
 import { 
   users, 
   roles, 
