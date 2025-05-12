@@ -526,8 +526,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management endpoints
   app.get("/api/users", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -547,8 +547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
