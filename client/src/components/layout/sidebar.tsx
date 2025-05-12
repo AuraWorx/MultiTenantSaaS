@@ -8,7 +8,8 @@ import {
   Settings, 
   Users,
   ChevronDown,
-  LogOut 
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -49,12 +50,18 @@ export function Sidebar() {
     { path: '/manage', label: 'Manage', icon: <Settings className="mr-3 h-5 w-5" /> },
   ];
 
-  // Only show user management for admins
-  if (user?.role.name === 'Administrator') {
+  // Only show admin-specific menu items for users with admin permissions
+  if (user?.role.permissions?.includes('admin:all')) {
     menuItems.push({ 
       path: '/users', 
       label: 'User Management', 
       icon: <Users className="mr-3 h-5 w-5" /> 
+    });
+    
+    menuItems.push({ 
+      path: '/admin', 
+      label: 'Administration', 
+      icon: <Shield className="mr-3 h-5 w-5" /> 
     });
   }
 

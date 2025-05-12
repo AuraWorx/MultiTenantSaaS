@@ -12,6 +12,7 @@ import MapPage from "./pages/map-page";
 import MeasurePage from "./pages/measure-page";
 import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
+import AdminPage from "./pages/admin-page";
 
 function Router() {
   return (
@@ -22,6 +23,7 @@ function Router() {
       <ProtectedRoute path="/measure" component={MeasurePage} />
       <ProtectedRoute path="/manage" component={ManagePage} />
       <ProtectedRoute path="/users" component={UserManagementPage} />
+      <ProtectedRoute path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );
