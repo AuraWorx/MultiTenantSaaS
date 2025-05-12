@@ -390,23 +390,23 @@ async function seed() {
     const hiringBiasScanRes = await client.query(`
       INSERT INTO bias_analysis_scans (
         name, description, status, data_source,
-        ai_system_id, organization_id, created_by
+        organization_id, created_by
       ) VALUES (
         'Hiring Data Bias Analysis', 'Analysis of potential bias in HR hiring data',
-        'completed', 'CSV Upload', $1, $2, $3
+        'completed', 'CSV Upload', $1, $2
       ) RETURNING *
-    `, [hrSystem.id, adminOrg.id, demoUser.id]);
+    `, [adminOrg.id, demoUser.id]);
     const hiringBiasScan = hiringBiasScanRes.rows[0];
 
     const lendingBiasScanRes = await client.query(`
       INSERT INTO bias_analysis_scans (
         name, description, status, data_source,
-        ai_system_id, organization_id, created_by
+        organization_id, created_by
       ) VALUES (
         'Lending Algorithm Bias Check', 'Analysis of potential bias in lending decisions',
-        'completed', 'API Webhook', $1, $2, $3
+        'completed', 'API Webhook', $1, $2
       ) RETURNING *
-    `, [fraudSystem.id, adminOrg.id, adminUser.id]);
+    `, [adminOrg.id, adminUser.id]);
     const lendingBiasScan = lendingBiasScanRes.rows[0];
 
     // Create Bias Analysis Results
