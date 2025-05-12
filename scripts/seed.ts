@@ -1,28 +1,56 @@
+import { randomBytes, scryptSync } from 'crypto';
+import {
+  users, organizations, roles, aiSystems, riskItems, complianceIssues,
+  githubScanConfigs, githubScanResults, githubScanSummaries,
+  biasAnalysisScans, biasAnalysisResults
+} from '@shared/schema';
 import { db, pool } from '../server/db';
-import { organizations, roles, users, aiSystems, riskItems, complianceIssues } from '../shared/schema';
-import { scrypt, randomBytes } from 'crypto';
-import { promisify } from 'util';
-
-const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${hash}.${salt}`;
 }
 
 async function seed() {
-  console.log('Starting database seed...');
-
   try {
-    // Clear existing data (optional - comment out if you don't want to clear data)
+    console.log('Starting database seed process...');
+
+    // Clear existing data
     console.log('Clearing existing data...');
     await db.delete(complianceIssues);
     await db.delete(riskItems);
     await db.delete(aiSystems);
+    await db.delete(biasAnalysisResults);
+    await db.delete(biasAnalysisScans);
+    await db.delete(githubScanResults);
+    await db.delete(githubScanSummaries);
+    await db.delete(githubScanConfigs);
     await db.delete(users);
     await db.delete(roles);
     await db.delete(organizations);
+
+    // Create roles
+    console.log('Creating roles...');
+    const [adminRole] = await db.insert(roles).values({
+      name: 'Administrator',
+      permissions: ['admin', 'manage_users', 'manage_organizations', 'view_all', 'edit_all'],
+    }).returning();
+
+    const [userRole] = await db.insert(roles).values({
+      name: 'User',
+      permissions: ['view_own', 'edit_own'],
+    }).returning();
+
+    const [analystRole] = await db.insert(roles).values({
+      name: 'Analyst',
+      permissions: ['view_all', 'edit_own'],
+    }).returning();
+
+    const [viewerRole] = await db.insert(roles).values({
+      name: 'Viewer',
+      permissions: ['view_own'],
+    }).returning();
 
     // Create organizations
     console.log('Creating organizations...');
@@ -30,37 +58,20 @@ async function seed() {
       name: 'Admin Organization',
     }).returning();
 
-    const [techCorp] = await db.insert(organizations).values({
-      name: 'TechCorp Inc.',
-    }).returning();
-
     const [financeOrg] = await db.insert(organizations).values({
-      name: 'Finance Global',
+      name: 'Finance Corp.',
     }).returning();
 
-    // Create roles
-    console.log('Creating roles...');
-    const [adminRole] = await db.insert(roles).values({
-      name: 'Admin',
-      permissions: ['admin:all', 'view:all', 'edit:all', 'delete:all'],
-    }).returning();
-
-    const [userRole] = await db.insert(roles).values({
-      name: 'User',
-      permissions: ['view:dashboard', 'edit:profile', 'view:reports', 'edit:ai-systems'],
-    }).returning();
-
-    const [viewerRole] = await db.insert(roles).values({
-      name: 'Viewer',
-      permissions: ['view:dashboard', 'view:reports'],
+    const [techOrg] = await db.insert(organizations).values({
+      name: 'TechCorp Inc.',
     }).returning();
 
     // Create users
     console.log('Creating users...');
     const hashedAdminPassword = await hashPassword('adminpassword');
     const [adminUser] = await db.insert(users).values({
-      username: 'admin_user',
-      email: 'admin@example.com',
+      username: 'admin',
+      email: 'admin@auraai.com',
       password: hashedAdminPassword,
       firstName: 'Admin',
       lastName: 'User',
@@ -98,15 +109,15 @@ async function seed() {
 
     // Create TechCorp users
     const hashedTechPassword = await hashPassword('techpassword');
-    const [techUser] = await db.insert(users).values({
-      username: 'tech_user',
-      email: 'tech@example.com',
+    const [techAdmin] = await db.insert(users).values({
+      username: 'tech_admin',
+      email: 'admin@techcorp.com',
       password: hashedTechPassword,
       firstName: 'Tech',
-      lastName: 'User',
+      lastName: 'Admin',
       avatarUrl: null,
       active: true,
-      organizationId: techCorp.id,
+      organizationId: techOrg.id,
       roleId: adminRole.id,
     }).returning();
 
@@ -114,47 +125,47 @@ async function seed() {
     console.log('Creating AI systems...');
     const [chatbot] = await db.insert(aiSystems).values({
       name: 'Customer Support Chatbot',
-      description: 'AI chatbot for customer support with natural language processing capabilities',
-      type: 'LLM',
-      location: 'Internal',
+      description: 'AI assistant for customer support',
+      type: 'Conversational AI',
+      location: 'cloud',
       organizationId: adminOrg.id,
       createdById: adminUser.id,
     }).returning();
 
     const [fraudSystem] = await db.insert(aiSystems).values({
       name: 'Fraud Detection System',
-      description: 'Machine learning system for detecting fraudulent transactions',
-      type: 'Classification',
-      location: 'Internal',
+      description: 'ML system to detect financial fraud',
+      type: 'Machine Learning',
+      location: 'on-premise',
       organizationId: adminOrg.id,
       createdById: adminUser.id,
     }).returning();
 
     const [hrSystem] = await db.insert(aiSystems).values({
       name: 'HR Candidate Screening',
-      description: 'AI system for initial screening of job candidates',
-      type: 'Classification',
-      location: 'Cloud',
+      description: 'AI for screening job candidates',
+      type: 'Machine Learning',
+      location: 'cloud',
       organizationId: adminOrg.id,
       createdById: demoUser.id,
     }).returning();
 
-    const [recommendationEngine] = await db.insert(aiSystems).values({
-      name: 'Product Recommendation Engine',
-      description: 'AI system for recommending products to customers based on their preferences',
-      type: 'Recommendation',
-      location: 'Internal',
-      organizationId: techCorp.id,
-      createdById: techUser.id,
-    }).returning();
-
     const [tradingBot] = await db.insert(aiSystems).values({
-      name: 'Automated Trading System',
-      description: 'AI system for algorithmic trading in financial markets',
-      type: 'Prediction',
-      location: 'Cloud',
+      name: 'Automated Trading Bot',
+      description: 'AI for high-frequency trading',
+      type: 'Decision System',
+      location: 'hybrid',
       organizationId: financeOrg.id,
       createdById: adminUser.id,
+    }).returning();
+
+    const [recommender] = await db.insert(aiSystems).values({
+      name: 'Product Recommender',
+      description: 'ML system for product recommendations',
+      type: 'Recommendation Engine',
+      location: 'cloud',
+      organizationId: techOrg.id,
+      createdById: techAdmin.id,
     }).returning();
 
     // Create Risk Items
@@ -195,7 +206,7 @@ async function seed() {
         aiSystemId: tradingBot.id,
         organizationId: financeOrg.id,
         createdById: adminUser.id,
-      }
+      },
     ]);
 
     // Create Compliance Issues
@@ -230,13 +241,164 @@ async function seed() {
       }
     ]);
 
+    // Create GitHub Scan Configs
+    console.log('Creating GitHub scan configs...');
+    const [auraWorxConfig] = await db.insert(githubScanConfigs).values({
+      githubOrgName: 'AuraWorx',
+      organizationId: adminOrg.id,
+      createdById: adminUser.id,
+      lastScanAt: new Date(),
+      status: 'completed',
+    }).returning();
+
+    const [techCorpConfig] = await db.insert(githubScanConfigs).values({
+      githubOrgName: 'TechCorp',
+      organizationId: techOrg.id,
+      createdById: techAdmin.id,
+      lastScanAt: new Date(),
+      status: 'completed',
+    }).returning();
+
+    const [financeCorpConfig] = await db.insert(githubScanConfigs).values({
+      githubOrgName: 'FinanceCorp',
+      organizationId: financeOrg.id,
+      createdById: adminUser.id,
+      lastScanAt: null,
+      status: 'pending',
+    }).returning();
+
+    // Create GitHub Scan Results
+    console.log('Creating GitHub scan results...');
+    await db.insert(githubScanResults).values([
+      {
+        scanConfigId: auraWorxConfig.id,
+        repositoryName: 'llm-anthropic',
+        repositoryUrl: 'https://github.com/AuraWorx/llm-anthropic',
+        hasAiUsage: true,
+        aiLibraries: ['anthropic'],
+        aiFrameworks: ['anthropic>=0.48.0'],
+        scanDate: new Date(),
+        addedToRisk: false,
+        confidenceScore: 100,
+        detectionType: 'Dependency File',
+      },
+      {
+        scanConfigId: auraWorxConfig.id,
+        repositoryName: 'MultiTenantSaaS',
+        repositoryUrl: 'https://github.com/AuraWorx/MultiTenantSaaS',
+        hasAiUsage: true,
+        aiLibraries: ['openai'],
+        aiFrameworks: ['openai@^4.98.0'],
+        scanDate: new Date(),
+        addedToRisk: true,
+        confidenceScore: 100,
+        detectionType: 'Dependency File',
+      },
+      {
+        scanConfigId: auraWorxConfig.id,
+        repositoryName: 'SmartGlasses',
+        repositoryUrl: 'https://github.com/AuraWorx/SmartGlasses',
+        hasAiUsage: false,
+        aiLibraries: [],
+        aiFrameworks: [],
+        scanDate: new Date(),
+        addedToRisk: false,
+        confidenceScore: 0,
+        detectionType: '',
+      },
+      {
+        scanConfigId: techCorpConfig.id,
+        repositoryName: 'ai-assistant',
+        repositoryUrl: 'https://github.com/TechCorp/ai-assistant',
+        hasAiUsage: true,
+        aiLibraries: ['langchain', 'openai'],
+        aiFrameworks: ['langchain@^0.0.200', 'openai@^4.2.0'],
+        scanDate: new Date(),
+        addedToRisk: true,
+        confidenceScore: 100,
+        detectionType: 'Dependency File',
+      },
+    ]);
+
+    // Create GitHub Scan Summaries
+    console.log('Creating GitHub scan summaries...');
+    await db.insert(githubScanSummaries).values([
+      {
+        scanConfigId: auraWorxConfig.id,
+        totalRepositories: 3,
+        repositoriesWithAi: 2,
+        scanDate: new Date(),
+        organizationId: adminOrg.id,
+      },
+      {
+        scanConfigId: techCorpConfig.id,
+        totalRepositories: 1,
+        repositoriesWithAi: 1,
+        scanDate: new Date(),
+        organizationId: techOrg.id,
+      },
+    ]);
+
+    // Create Bias Analysis Scans
+    console.log('Creating bias analysis scans...');
+    const [hiringBiasScan] = await db.insert(biasAnalysisScans).values({
+      name: 'Hiring Data Bias Analysis',
+      description: 'Analysis of potential bias in HR hiring data',
+      status: 'completed',
+      dataSource: 'CSV Upload',
+      aiSystemId: hrSystem.id,
+      organizationId: adminOrg.id,
+      createdById: demoUser.id,
+    }).returning();
+
+    const [lendingBiasScan] = await db.insert(biasAnalysisScans).values({
+      name: 'Lending Algorithm Bias Check',
+      description: 'Analysis of potential bias in lending decisions',
+      status: 'completed',
+      dataSource: 'API Webhook',
+      aiSystemId: fraudSystem.id,
+      organizationId: adminOrg.id,
+      createdById: adminUser.id,
+    }).returning();
+
+    // Create Bias Analysis Results
+    console.log('Creating bias analysis results...');
+    await db.insert(biasAnalysisResults).values([
+      {
+        scanId: hiringBiasScan.id,
+        biasType: 'gender',
+        biasScore: 0.78,
+        description: 'Significant gender bias detected in hiring data',
+        attributeContributions: JSON.stringify({
+          'education': 0.35,
+          'previous_roles': 0.28,
+          'age': 0.15
+        }),
+        recommendedActions: 'Review and adjust model weights for education and previous roles attributes',
+        organizationId: adminOrg.id,
+      },
+      {
+        scanId: lendingBiasScan.id,
+        biasType: 'racial',
+        biasScore: 0.42,
+        description: 'Moderate racial bias detected in lending decisions',
+        attributeContributions: JSON.stringify({
+          'zip_code': 0.45,
+          'income': 0.22,
+          'credit_history_length': 0.18
+        }),
+        recommendedActions: 'Remove zip code as a factor in lending decisions',
+        organizationId: adminOrg.id,
+      },
+    ]);
+
     console.log('Database seed completed successfully!');
     
     // Print login credentials for reference
     console.log('\nSample Login Credentials:');
     console.log('----------------------------------');
     console.log('Admin User:');
-    console.log('  Username: admin_user');
+    console.log('  Username: admin');
     console.log('  Password: adminpassword');
     console.log('\nDemo User:');
     console.log('  Username: demo_user');
