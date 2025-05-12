@@ -1920,7 +1920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const orgId = req.user.organization.id;
       
       const alerts = await db.query.frontierModelAlerts.findMany({
-        where: eq(frontierModelAlerts.organizationId, orgId),
+        where: eq(frontierModelAlerts.organization_id, orgId),
         with: {
           model: true,
           user: {
@@ -1932,7 +1932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
         },
-        orderBy: [desc(frontierModelAlerts.createdAt)]
+        orderBy: [desc(frontierModelAlerts.created_at)]
       });
       
       res.json(alerts);
@@ -1982,7 +1982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(frontierModelAlerts)
         .where(and(
           eq(frontierModelAlerts.id, alertId),
-          eq(frontierModelAlerts.organizationId, orgId)
+          eq(frontierModelAlerts.organization_id, orgId)
         ));
       
       if (!alert) {

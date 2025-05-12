@@ -178,7 +178,7 @@ export function FrontierModelAlerts() {
       return;
     }
 
-    if (!alertFormData.frontierModelId) {
+    if (!alertFormData.frontier_model_id) {
       toast({
         title: 'Error',
         description: 'Please select a frontier model',
@@ -189,9 +189,9 @@ export function FrontierModelAlerts() {
 
     const payload = {
       name: alertFormData.name,
-      frontierModelId: alertFormData.frontierModelId,
-      alertTypes: alertFormData.alertTypes,
-      alertFrequency: alertFormData.alertFrequency
+      frontier_model_id: alertFormData.frontier_model_id,
+      alert_type: alertFormData.alert_type,
+      alert_frequency: alertFormData.alert_frequency
     };
     
     createAlertMutation.mutate(payload);
@@ -676,9 +676,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Security alert for ${selectedModel.name}`,
-                        alertTypes: ['security'],
-                        frontierModelId: selectedModel.id,
-                        alertFrequency: 'daily'
+                        alert_type: 'security',
+                        frontier_model_id: selectedModel.id,
+                        alert_frequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
@@ -692,9 +692,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Feature alert for ${selectedModel.name}`,
-                        alertTypes: ['feature'],
-                        frontierModelId: selectedModel.id,
-                        alertFrequency: 'daily'
+                        alert_type: 'feature',
+                        frontier_model_id: selectedModel.id,
+                        alert_frequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
