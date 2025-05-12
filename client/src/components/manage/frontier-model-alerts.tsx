@@ -109,7 +109,8 @@ export function FrontierModelAlerts() {
       setAlertFormData({
         name: '',
         alert_type: 'security',
-        frontier_model_id: 0
+        frontier_model_id: 0,
+        alert_frequency: 'daily'
       });
       setCreateAlertOpen(false);
       toast({
@@ -244,7 +245,7 @@ export function FrontierModelAlerts() {
 
   const openSourceUrl = (url: string | null) => {
     if (url) {
-      window.open(url, '_blank');
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 
