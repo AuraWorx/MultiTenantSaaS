@@ -335,20 +335,50 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
           console.error(`Error fetching repo contents for ${repo.name}:`, contentError);
         }
         
-        // Determine if repo has AI usage
+        // Determine if repo has AI usage and calculate confidence score
         const hasAiUsage = aiSignals.length > 0 || aiLibrariesFound.length > 0;
         
+        // Calculate confidence score (0-100) based on signals
+        let confidenceScore = 0;
+        let primaryDetectionType = '';
+        
         if (hasAiUsage) {
+          // Sort signals by confidence (highest first)
+          const sortedSignals = [...aiSignals].sort((a, b) => b.confidence - a.confidence);
+          
+          if (sortedSignals.length > 0) {
+            // Use the highest confidence as the base
+            const highestConfidence = sortedSignals[0].confidence;
+            primaryDetectionType = sortedSignals[0].type;
+            
+            // Adjust score based on number of signals and their confidence
+            confidenceScore = Math.round(highestConfidence * 100);
+            
+            // Boost confidence if multiple signals
+            if (sortedSignals.length > 1) {
+              confidenceScore = Math.min(100, confidenceScore + 5 * (sortedSignals.length - 1));
+            }
+            
+            // Boost confidence if libraries are found
+            if (aiLibrariesFound.length > 0) {
+              confidenceScore = Math.min(100, confidenceScore + 10);
+            }
+          } else if (aiLibrariesFound.length > 0) {
+            // If only libraries are found but no signals
+            confidenceScore = 85;
+            primaryDetectionType = 'Library Detection';
+          }
+          
           reposWithAI++;
           
-          // Only log AI findings
-          console.log(`AI usage detected in ${repo.name}:`);
+          // Log AI findings with confidence score
+          console.log(`AI usage detected in ${repo.name} (${confidenceScore}% confidence):`);
           console.log(`- Libraries: ${aiLibrariesFound.join(', ')}`);
           console.log(`- Signals: ${aiSignals.map(s => s.type).join(', ')}`);
         }
         
         // Create a list of unique libraries
-        const uniqueLibraries = [...new Set(aiLibrariesFound)];
+        const uniqueLibraries = Array.from(new Set(aiLibrariesFound));
         
         // Save repository scan result to database
         await db.insert(githubScanResults).values({
@@ -358,7 +388,9 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
           repository_url: repo.html_url,
           has_ai_usage: hasAiUsage,
           ai_libraries: uniqueLibraries,
-          ai_frameworks: aiFrameworksFound.slice(0, 10) // Limit to avoid DB size issues
+          ai_frameworks: aiFrameworksFound.slice(0, 10), // Limit to avoid DB size issues
+          confidence_score: confidenceScore,
+          detection_type: primaryDetectionType
         });
         
         // Pause to avoid rate limits

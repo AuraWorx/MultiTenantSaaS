@@ -228,7 +228,7 @@ export const githubScanResults = pgTable("github_scan_results", {
   has_ai_usage: boolean("has_ai_usage").default(false),
   ai_libraries: text("ai_libraries").array(),
   ai_frameworks: text("ai_frameworks").array(),
-  confidence_score: decimal("confidence_score", { precision: 4, scale: 2 }),
+  confidence_score: integer("confidence_score"),
   detection_type: text("detection_type"),
   scan_date: timestamp("scan_date").defaultNow(),
   added_to_risk: boolean("added_to_risk").default(false),
