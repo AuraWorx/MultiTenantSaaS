@@ -1016,12 +1016,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .values({
           title: `AI Usage in ${result.repository_name}`,
           description: `AI libraries detected: ${result.ai_libraries ? result.ai_libraries.join(', ') : 'None'}. Repository URL: ${result.repository_url}`,
-          risk_level: "medium",
-          risk_type: "operational",
+          severity: "medium", // Changed from risk_level to severity
           status: "open",
-          organization_id: organizationId,
-          created_by_id: req.user?.id || 1,
-          mitigation_plan: "Review AI usage and implement governance controls"
+          aiSystemId: 1, // Using default system ID
+          organizationId: organizationId, // Changed from organization_id
+          createdById: req.user?.id || 1, // Changed from created_by_id
         })
         .returning();
       
