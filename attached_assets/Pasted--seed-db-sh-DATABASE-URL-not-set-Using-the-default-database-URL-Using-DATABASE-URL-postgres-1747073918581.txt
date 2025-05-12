@@ -1,0 +1,65 @@
+./seed-db.sh
+⚠️ DATABASE_URL not set. Using the default database URL.
+Using DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_governance
+If this is incorrect, please set the DATABASE_URL environment variable before running this script.
+For example: DATABASE_URL='postgresql://user:password@localhost:5432/database' ./seed-db.sh
+Continue with this database URL? (y/n)
+y
+⏳ Running database seed script...
+Running in local environment, using node with pg client...
+Using database URL: postgresql://postgres:postgres@localhost:5432/ai_governance
+Connected to PostgreSQL database
+Clearing existing data...
+Resetting sequences...
+Creating roles...
+Creating organizations...
+Creating users...
+Creating AI systems...
+Creating risk items...
+Creating compliance issues...
+Creating GitHub scan configs...
+Error seeding database: error: column "created_by_id" of relation "github_scan_configs" does not exist
+    at /opt/apps/MultiTenantSaaS/node_modules/pg/lib/client.js:545:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async seed (file:///opt/apps/MultiTenantSaaS/local-seed.js:286:31) {
+  length: 145,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '84',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1066',
+  routine: 'checkInsertTargets'
+}
+Database connection closed
+Seed failed: error: column "created_by_id" of relation "github_scan_configs" does not exist
+    at /opt/apps/MultiTenantSaaS/node_modules/pg/lib/client.js:545:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async seed (file:///opt/apps/MultiTenantSaaS/local-seed.js:286:31) {
+  length: 145,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '84',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_target.c',
+  line: '1066',
+  routine: 'checkInsertTargets'
+}

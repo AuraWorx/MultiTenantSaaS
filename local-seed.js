@@ -27,6 +27,11 @@ async function seed() {
     await client.query('DELETE FROM compliance_issues');
     await client.query('DELETE FROM risk_items');
     await client.query('DELETE FROM ai_systems');
+    await client.query('DELETE FROM bias_analysis_results');
+    await client.query('DELETE FROM bias_analysis_scans');
+    await client.query('DELETE FROM github_scan_results');
+    await client.query('DELETE FROM github_scan_summaries');
+    await client.query('DELETE FROM github_scan_configs');
     await client.query('DELETE FROM users');
     await client.query('DELETE FROM roles');
     await client.query('DELETE FROM organizations');
@@ -39,6 +44,11 @@ async function seed() {
     await client.query('ALTER SEQUENCE ai_systems_id_seq RESTART WITH 1');
     await client.query('ALTER SEQUENCE risk_items_id_seq RESTART WITH 1');
     await client.query('ALTER SEQUENCE compliance_issues_id_seq RESTART WITH 1');
+    await client.query('ALTER SEQUENCE github_scan_configs_id_seq RESTART WITH 1');
+    await client.query('ALTER SEQUENCE github_scan_results_id_seq RESTART WITH 1');
+    await client.query('ALTER SEQUENCE github_scan_summaries_id_seq RESTART WITH 1');
+    await client.query('ALTER SEQUENCE bias_analysis_scans_id_seq RESTART WITH 1');
+    await client.query('ALTER SEQUENCE bias_analysis_results_id_seq RESTART WITH 1');
 
     // Create roles
     console.log('Creating roles...');
@@ -86,6 +96,13 @@ async function seed() {
     `);
     const financeOrg = financeOrgRes.rows[0];
 
+    const techOrgRes = await client.query(`
+      INSERT INTO organizations (name) 
+      VALUES ('TechCorp Inc.')
+      RETURNING *
+    `);
+    const techOrg = techOrgRes.rows[0];
+
     // Create users
     console.log('Creating users...');
     const adminUserRes = await client.query(`
@@ -93,7 +110,7 @@ async function seed() {
         username, email, password, first_name, last_name, 
         organization_id, role_id, active
       ) VALUES (
-        'admin_user', 'admin@auraai.com', $1, 'Admin', 'User', 
+        'admin', 'admin@auraai.com', $1, 'Admin', 'User', 
         $2, $3, true
       ) RETURNING *
     `, [await hashPassword('adminpassword'), adminOrg.id, adminRole.id]);
@@ -118,8 +135,20 @@ async function seed() {
         'viewer_user', 'viewer@auraai.com', $1, 'Viewer', 'User', 
         $2, $3, true
       ) RETURNING *
-    `, [await hashPassword('viewerpassword'), financeOrg.id, viewerRole.id]);
+    `, [await hashPassword('viewerpassword'), adminOrg.id, viewerRole.id]);
     const viewerUser = viewerUserRes.rows[0];
+
+    // Create Tech Corp admin user
+    const techAdminRes = await client.query(`
+      INSERT INTO users (
+        username, email, password, first_name, last_name, 
+        organization_id, role_id, active
+      ) VALUES (
+        'tech_admin', 'admin@techcorp.com', $1, 'Tech', 'Admin', 
+        $2, $3, true
+      ) RETURNING *
+    `, [await hashPassword('techpassword'), techOrg.id, adminRole.id]);
+    const techAdmin = techAdminRes.rows[0];
 
     // Create AI Systems
     console.log('Creating AI systems...');
@@ -175,7 +204,7 @@ async function seed() {
         'Product Recommender', 'ML system for product recommendations', 
         'Recommendation Engine', 'cloud', $1, $2
       ) RETURNING *
-    `, [financeOrg.id, viewerUser.id]);
+    `, [techOrg.id, techAdmin.id]);
     const recommender = recommenderRes.rows[0];
 
     // Create Risk Items
@@ -252,13 +281,165 @@ async function seed() {
       )
     `, [hrSystem.id, adminOrg.id, demoUser.id]);
 
+    // Create GitHub Scan Configs
+    console.log('Creating GitHub scan configs...');
+    const apiKey = process.env.GITHUB_API_KEY || 'dummy-api-key';
+    
+    const auraWorxConfigRes = await client.query(`
+      INSERT INTO github_scan_configs (
+        github_org_name, organization_id, api_key, 
+        last_scan_at, status
+      ) VALUES (
+        'AuraWorx', $1, $2, $3, 'completed'
+      ) RETURNING *
+    `, [adminOrg.id, apiKey, new Date()]);
+    const auraWorxConfig = auraWorxConfigRes.rows[0];
+
+    const techCorpConfigRes = await client.query(`
+      INSERT INTO github_scan_configs (
+        github_org_name, organization_id, api_key, 
+        last_scan_at, status
+      ) VALUES (
+        'TechCorp', $1, $2, $3, 'completed'
+      ) RETURNING *
+    `, [techOrg.id, apiKey, new Date()]);
+    const techCorpConfig = techCorpConfigRes.rows[0];
+
+    const financeCorpConfigRes = await client.query(`
+      INSERT INTO github_scan_configs (
+        github_org_name, organization_id, api_key, 
+        status
+      ) VALUES (
+        'FinanceCorp', $1, $2, 'pending'
+      ) RETURNING *
+    `, [financeOrg.id, apiKey]);
+    const financeCorpConfig = financeCorpConfigRes.rows[0];
+
+    // Create GitHub Scan Results
+    console.log('Creating GitHub scan results...');
+    await client.query(`
+      INSERT INTO github_scan_results (
+        scan_config_id, repository_name, repository_url, 
+        has_ai_usage, ai_libraries, ai_frameworks, 
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
+      ) VALUES (
+        $1, 'llm-anthropic', 'https://github.com/AuraWorx/llm-anthropic',
+        true, ARRAY['anthropic'], ARRAY['anthropic>=0.48.0'],
+        $2, false, 100, 'Dependency File', $3
+      )
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
+
+    await client.query(`
+      INSERT INTO github_scan_results (
+        scan_config_id, repository_name, repository_url, 
+        has_ai_usage, ai_libraries, ai_frameworks, 
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
+      ) VALUES (
+        $1, 'MultiTenantSaaS', 'https://github.com/AuraWorx/MultiTenantSaaS',
+        true, ARRAY['openai'], ARRAY['openai@^4.98.0'],
+        $2, true, 100, 'Dependency File', $3
+      )
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
+
+    await client.query(`
+      INSERT INTO github_scan_results (
+        scan_config_id, repository_name, repository_url, 
+        has_ai_usage, ai_libraries, ai_frameworks, 
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
+      ) VALUES (
+        $1, 'SmartGlasses', 'https://github.com/AuraWorx/SmartGlasses',
+        false, ARRAY[]::text[], ARRAY[]::text[],
+        $2, false, 0, '', $3
+      )
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
+
+    await client.query(`
+      INSERT INTO github_scan_results (
+        scan_config_id, repository_name, repository_url, 
+        has_ai_usage, ai_libraries, ai_frameworks, 
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
+      ) VALUES (
+        $1, 'ai-assistant', 'https://github.com/TechCorp/ai-assistant',
+        true, ARRAY['langchain', 'openai'], ARRAY['langchain@^0.0.200', 'openai@^4.2.0'],
+        $2, true, 100, 'Dependency File', $3
+      )
+    `, [techCorpConfig.id, new Date(), techOrg.id]);
+
+    // Create GitHub Scan Summaries
+    console.log('Creating GitHub scan summaries...');
+    await client.query(`
+      INSERT INTO github_scan_summaries (
+        scan_config_id, total_repositories, repositories_with_ai,
+        scan_date, organization_id
+      ) VALUES (
+        $1, 3, 2, $2, $3
+      )
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
+
+    await client.query(`
+      INSERT INTO github_scan_summaries (
+        scan_config_id, total_repositories, repositories_with_ai,
+        scan_date, organization_id
+      ) VALUES (
+        $1, 1, 1, $2, $3
+      )
+    `, [techCorpConfig.id, new Date(), techOrg.id]);
+
+    // Create Bias Analysis Scans
+    console.log('Creating bias analysis scans...');
+    const hiringBiasScanRes = await client.query(`
+      INSERT INTO bias_analysis_scans (
+        name, description, status, data_source,
+        organization_id, created_by
+      ) VALUES (
+        'Hiring Data Bias Analysis', 'Analysis of potential bias in HR hiring data',
+        'completed', 'CSV Upload', $1, $2
+      ) RETURNING *
+    `, [adminOrg.id, demoUser.id]);
+    const hiringBiasScan = hiringBiasScanRes.rows[0];
+
+    const lendingBiasScanRes = await client.query(`
+      INSERT INTO bias_analysis_scans (
+        name, description, status, data_source,
+        organization_id, created_by
+      ) VALUES (
+        'Lending Algorithm Bias Check', 'Analysis of potential bias in lending decisions',
+        'completed', 'API Webhook', $1, $2
+      ) RETURNING *
+    `, [adminOrg.id, adminUser.id]);
+    const lendingBiasScan = lendingBiasScanRes.rows[0];
+
+    // Create Bias Analysis Results
+    console.log('Creating bias analysis results...');
+    await client.query(`
+      INSERT INTO bias_analysis_results (
+        scan_id, metric_name, metric_description, score, threshold,
+        status, demographic_group, additional_data, organization_id
+      ) VALUES (
+        $1, 'gender', 'Gender bias analysis', 78, 50,
+        'fail', 'female', '{"education": 0.35, "previous_roles": 0.28, "age": 0.15}',
+        $2
+      )
+    `, [hiringBiasScan.id, adminOrg.id]);
+
+    await client.query(`
+      INSERT INTO bias_analysis_results (
+        scan_id, metric_name, metric_description, score, threshold,
+        status, demographic_group, additional_data, organization_id
+      ) VALUES (
+        $1, 'racial', 'Racial bias analysis', 42, 50,
+        'pass', 'minority', '{"zip_code": 0.45, "income": 0.22, "credit_history_length": 0.18}',
+        $2
+      )
+    `, [lendingBiasScan.id, adminOrg.id]);
+
     console.log('Database seed completed successfully!');
     
     // Print login credentials for reference
     console.log('\nSample Login Credentials:');
     console.log('----------------------------------');
     console.log('Admin User:');
-    console.log('  Username: admin_user');
+    console.log('  Username: admin');
     console.log('  Password: adminpassword');
     console.log('\nDemo User:');
     console.log('  Username: demo_user');

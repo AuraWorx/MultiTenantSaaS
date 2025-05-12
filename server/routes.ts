@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
-import { eq, and, count, sum, asc, desc, SQL } from "drizzle-orm";
+import { eq, and, count, sum, asc, desc, SQL, sql } from "drizzle-orm";
 import axios from 'axios';
 import { 
   users, 
@@ -479,39 +479,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const organizationId = user.organization?.id || user.organizationId;
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
 
-      // Use static data for now to show the dashboard
+      // Get actual counts from database
+      // Count AI Systems - count repos with AI usage from scan results
+      const aiSystemsCount = await db.select({ count: sql`count(*)` })
+        .from(githubScanResults)
+        .where(and(
+          eq(githubScanResults.organization_id, organizationId),
+          eq(githubScanResults.has_ai_usage, true)
+        ))
+        .then(result => Number(result[0]?.count || 0));
+
+      // Count compliance issues
+      const complianceIssuesCount = await db.select({ count: sql`count(*)` })
+        .from(complianceIssues)
+        .where(eq(complianceIssues.organizationId, organizationId))
+        .then(result => Number(result[0]?.count || 0));
+
+      // Count open risks
+      const openRisksCount = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.organizationId, organizationId),
+          eq(riskItems.status, 'open')
+        ))
+        .then(result => Number(result[0]?.count || 0));
+
       const stats = {
-        aiSystemsCount: 5,
-        complianceIssuesCount: 3,
-        openRisksCount: 2
+        aiSystemsCount: aiSystemsCount || 0,
+        complianceIssuesCount: complianceIssuesCount || 0,
+        openRisksCount: openRisksCount || 0
       };
 
-      // Get recent activities (mock data for now)
+      // Get recent activities (from GitHub scan results, risks, and compliance issues)
+      // First get the latest scan results
+      const recentScans = await db
+        .select({
+          id: githubScanResults.id,
+          repoName: githubScanResults.repository_name, 
+          createdAt: githubScanResults.scan_date,
+        })
+        .from(githubScanResults)
+        .where(eq(githubScanResults.organization_id, organizationId))
+        .orderBy(desc(githubScanResults.scan_date))
+        .limit(5);
+      
+      // Then get recent risk items
+      const recentRisks = await db.select({
+        id: riskItems.id,
+        title: riskItems.title,
+        createdAt: riskItems.createdAt,
+      })
+      .from(riskItems)
+      .where(eq(riskItems.organizationId, organizationId))
+      .orderBy(desc(riskItems.createdAt))
+      .limit(5);
+      
+      // Format activities from the combined data
       const activities = [
-        {
-          id: 1,
-          type: 'success',
-          message: 'New AI system added to inventory',
-          entity: 'Customer Support Bot',
-          timestamp: new Date(Date.now() - 7200000) // 2 hours ago
-        },
-        {
-          id: 2,
-          type: 'warning',
-          message: 'Compliance issue detected in',
-          entity: 'Product Recommendation Engine',
-          timestamp: new Date(Date.now() - 86400000) // 1 day ago
-        },
-        {
-          id: 3,
-          type: 'info',
-          message: 'Risk assessment updated for',
-          entity: 'Content Moderation AI',
-          timestamp: new Date(Date.now() - 172800000) // 2 days ago
-        }
-      ];
+        ...recentScans.map(scan => ({
+          id: scan.id,
+          type: 'info' as const,
+          message: 'AI usage scan completed for',
+          entity: scan.repoName,
+          timestamp: scan.createdAt
+        })),
+        ...recentRisks.map(risk => ({
+          id: risk.id + 1000, // Ensure unique IDs
+          type: 'warning' as const,
+          message: 'Risk item created:',
+          entity: risk.title,
+          timestamp: risk.createdAt
+        }))
+      ]
+      .sort((a, b) => {
+        // Handle null timestamps
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        
+        const dateA = a.timestamp instanceof Date ? a.timestamp : new Date(String(a.timestamp));
+        const dateB = b.timestamp instanceof Date ? b.timestamp : new Date(String(b.timestamp));
+        return dateB.getTime() - dateA.getTime();
+      })
+      .slice(0, 5);
 
       res.json({
         stats,
@@ -526,8 +578,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management endpoints
   app.get("/api/users", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -547,8 +599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -569,8 +621,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -595,8 +647,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = parseInt(req.params.id);
       
-      // Check if user is admin
-      if (req.user.roleId !== 1) {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
         return res.status(403).json({ message: "Forbidden" });
       }
 
@@ -620,34 +672,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch organizations" });
     }
   });
+  
+  // Roles endpoints
+  app.get("/api/roles", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user has admin role for full access
+      if (req.user?.role?.permissions?.includes('admin')) {
+        const rolesList = await db.select().from(roles);
+        res.json(rolesList);
+      } else {
+        // For non-admin users, only return non-admin roles
+        const rolesList = await db.select()
+          .from(roles)
+          .where(sql`NOT ${roles.permissions}::text[] && ARRAY['admin']::text[]`);
+        res.json(rolesList);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+      res.status(500).json({ message: "Failed to fetch roles" });
+    }
+  });
 
+  // Create a new organization (tenant)
   app.post("/api/organizations", isAuthenticated, async (req, res) => {
     try {
-      // Check if user is admin
-      if (!req.user || req.user.role.id !== 1) {
-        return res.status(403).json({ message: "Forbidden: Only administrators can create organizations" });
+      // Check if user has admin role
+      if (!req.user.role.permissions.includes('admin')) {
+        return res.status(403).json({ message: "Insufficient permissions to create organizations" });
       }
 
-      // Validate organization data
-      const orgData = insertOrganizationSchema.parse(req.body);
+      const { name, template } = req.body;
       
-      // Check if organization already exists
+      if (!name) {
+        return res.status(400).json({ message: "Organization name is required" });
+      }
+      
+      // Check if organization with this name already exists
       const existingOrg = await db.select()
         .from(organizations)
-        .where(eq(organizations.name, orgData.name))
+        .where(eq(organizations.name, name))
         .limit(1);
         
       if (existingOrg.length > 0) {
-        return res.status(400).json({ message: "Organization with this name already exists" });
+        return res.status(400).json({ message: "An organization with this name already exists" });
       }
       
-      // Create organization
-      const [newOrg] = await db.insert(organizations).values(orgData).returning();
+      // Create the organization
+      const [newOrg] = await db.insert(organizations)
+        .values({ name })
+        .returning();
+        
+      // If template is specified, seed the organization with demo data
+      if (template === 'demo') {
+        // Create demo AI systems
+        const [chatbot] = await db.insert(aiSystems).values({
+          name: 'AI Customer Assistant',
+          description: 'Virtual assistant using GPT-4 to handle customer queries',
+          type: 'LLM',
+          location: 'Cloud',
+          organizationId: newOrg.id,
+          createdById: req.user.id,
+        }).returning();
+        
+        const [riskEngine] = await db.insert(aiSystems).values({
+          name: 'Credit Risk Engine',
+          description: 'ML model for credit risk assessment',
+          type: 'Classification',
+          location: 'Internal',
+          organizationId: newOrg.id,
+          createdById: req.user.id,
+        }).returning();
+        
+        // Add some risk items
+        await db.insert(riskItems).values([
+          {
+            title: 'Data Privacy Risk',
+            description: 'Customer data handling concerns in AI assistant',
+            severity: 'high',
+            status: 'open',
+            aiSystemId: chatbot.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          },
+          {
+            title: 'Model Bias Risk',
+            description: 'Potential bias in credit risk model',
+            severity: 'medium',
+            status: 'mitigated',
+            aiSystemId: riskEngine.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          }
+        ]);
+        
+        // Add compliance issues
+        await db.insert(complianceIssues).values([
+          {
+            title: 'GDPR Compliance Gap',
+            description: 'Missing data retention policies',
+            severity: 'high',
+            status: 'open',
+            aiSystemId: chatbot.id,
+            organizationId: newOrg.id,
+            createdById: req.user.id,
+          }
+        ]);
+      }
       
       res.status(201).json(newOrg);
     } catch (error) {
       console.error("Error creating organization:", error);
       res.status(500).json({ message: "Failed to create organization" });
+    }
+  });
+
+  // API endpoints for user management
+  app.get("/api/users/admins", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user has admin permissions
+      if (!req.user?.role?.permissions?.includes('admin')) {
+        return res.status(403).json({ message: "Forbidden: Insufficient permissions" });
+      }
+
+      // Get all admin users
+      const adminUsers = await db.query.users.findMany({
+        with: {
+          organization: true,
+          role: true
+        },
+        where: (users, { eq }) => eq(users.roleId, 1)
+      });
+      
+      res.json(adminUsers);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      res.status(500).json({ message: "Failed to fetch admin users" });
     }
   });
 
@@ -886,50 +1045,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "resultId is required" });
       }
       
-      const organizationId = req.user.organization?.id || req.user.organizationId;
+      // Get organization ID from user object
+      const organizationId = req.user?.organization?.[0] || 1;
       
       // Get the scan result
-      const [result] = await db.select()
+      const [scanResult] = await db.select()
         .from(githubScanResults)
-        .where(and(
-          eq(githubScanResults.id, resultId),
-          eq(githubScanResults.organization_id, organizationId)
-        ));
+        .where(eq(githubScanResults.id, resultId));
       
-      if (!result) {
+      if (!scanResult) {
         return res.status(404).json({ message: "Scan result not found" });
       }
       
-      if (result.added_to_risk) {
+      if (scanResult.added_to_risk) {
         return res.status(400).json({ message: "This result has already been added to the risk register" });
       }
       
+      // Create a default AI system if none exists for the organization
+      const systemName = 'GitHub Repository Scanner';
+      
+      // Insert a new AI system or use an existing one
+      let systemId = 1;
+      
+      try {
+        // Try to get an existing AI system
+        const systems = await db
+          .select()
+          .from(aiSystems)
+          .where(eq(aiSystems.organizationId, organizationId));
+        
+        if (systems && systems.length > 0) {
+          systemId = systems[0].id;
+        } else {
+          // Create a new AI system
+          const [newSystem] = await db
+            .insert(aiSystems)
+            .values({
+              name: systemName,
+              description: 'System for tracking AI usage in repositories',
+              type: 'Scanner',
+              location: 'Internal',
+              organizationId: organizationId,
+              createdById: req.user?.id || 1,
+            })
+            .returning();
+          
+          systemId = newSystem.id;
+        }
+      } catch (err) {
+        console.error("Error managing AI systems:", err);
+        // Use default system ID if there's an error
+      }
+      
       // Create a risk item
-      const [riskItem] = await db.insert(riskItems)
+      const [riskItem] = await db
+        .insert(riskItems)
         .values({
-          title: `AI Usage in ${result.repository_name}`,
-          description: `AI libraries detected: ${result.ai_libraries ? result.ai_libraries.join(', ') : 'None'}. Repository URL: ${result.repository_url}`,
-          risk_level: "medium",
-          risk_type: "operational",
+          title: `AI Usage in ${scanResult.repository_name}`,
+          description: `AI usage detected in repository: ${scanResult.repository_name}. Libraries: ${scanResult.ai_libraries ? scanResult.ai_libraries.join(', ') : 'None'}. URL: ${scanResult.repository_url}`,
+          severity: "medium",
           status: "open",
-          organization_id: organizationId,
-          created_by_id: req.user?.id || 1,
-          mitigation_plan: "Review AI usage and implement governance controls"
+          aiSystemId: systemId,
+          organizationId: organizationId,
+          createdById: req.user?.id || 1,
         })
         .returning();
       
       // Mark the result as added to risk
-      await db.update(githubScanResults)
+      await db
+        .update(githubScanResults)
         .set({ added_to_risk: true })
         .where(eq(githubScanResults.id, resultId));
       
-      res.json({ message: "Added to risk register successfully", riskItemId: riskItem.id });
+      res.json({ 
+        message: "Added to risk register successfully", 
+        riskItemId: riskItem.id 
+      });
     } catch (error) {
       console.error("Error adding scan result to risk register:", error);
-      res.status(500).json({ message: "Failed to add to risk register", error: error.message });
+      res.status(500).json({ 
+        message: "Failed to add to risk register", 
+        error: error.message 
+      });
     }
   });
 
+  // Risk Register API Endpoints
+  
+  // Get all risk items for the organization
+  app.get("/api/risk-items", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      const items = await db
+        .select()
+        .from(riskItems)
+        .where(eq(riskItems.organizationId, organizationId))
+        .orderBy(desc(riskItems.createdAt));
+      
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching risk items:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk items", 
+        error: error.message 
+      });
+    }
+  });
+  
   // Bias Analysis API Endpoints
   
   // Get all bias analysis scans for the organization

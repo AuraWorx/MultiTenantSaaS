@@ -46,7 +46,7 @@ The platform is organized around three main modules:
 
 Discover and document AI systems throughout your organization:
 
-- **AI Usage Finder**: Discover and catalog AI systems across your organization
+- **AI Usage Finder**: Discover and catalog AI/ML usage across your GitHub repositories
 - **Use Case Database**: Maintain a database of AI use cases with detailed information
 - **CMDB Integration**: Connect with Configuration Management Database for AI asset tracking
 - **Risk Documentation**: Document and track AI-related risks and compliance requirements
@@ -58,8 +58,9 @@ Assess and analyze AI systems for risks and compliance:
 - **Compliance Rules Engine**: Define and enforce compliance rules for AI systems
 - **AuraAI Wizard**: Guided compliance assessment tool for AI systems
 - **PII Leak Detection**: Find sensitive data exposure in AI systems
-- **Bias Analysis**: Detect and mitigate potential biases in AI models
+- **Bias Analysis**: Detect and mitigate potential biases in AI models and training data
 - **Toxicity Analysis**: Detect harmful content in AI-generated outputs
+- **ChatGPT PII Detection**: Detect potential privacy issues in ChatGPT usage
 
 ### Manage
 
@@ -79,6 +80,7 @@ The frontend is built with React and organized as follows:
 client/
 ├── src/
 │   ├── components/
+│   │   ├── admin/         # Admin components (user management, etc.)
 │   │   ├── auth/          # Authentication components
 │   │   ├── dashboard/     # Dashboard components
 │   │   ├── layout/        # Layout components (sidebar, navbar)
@@ -131,7 +133,7 @@ Key technologies used:
 
 ### Database Schema
 
-The application uses a PostgreSQL database with the following schema:
+The application uses a PostgreSQL database with the following primary tables:
 
 ```
 organizations
@@ -164,7 +166,7 @@ ai_systems
 ├── type
 ├── status
 ├── organizationId (FK to organizations)
-├── createdBy (FK to users)
+├── createdById (FK to users)
 ├── createdAt
 └── updatedAt
 
@@ -172,12 +174,11 @@ risk_items
 ├── id (PK)
 ├── title
 ├── description
-├── category
 ├── severity
 ├── status
 ├── organizationId (FK to organizations)
 ├── aiSystemId (FK to ai_systems)
-├── createdBy (FK to users)
+├── createdById (FK to users)
 ├── createdAt
 └── updatedAt
 
@@ -185,12 +186,65 @@ compliance_issues
 ├── id (PK)
 ├── title
 ├── description
-├── category
 ├── severity
 ├── status
 ├── organizationId (FK to organizations)
 ├── aiSystemId (FK to ai_systems)
-├── createdBy (FK to users)
+├── createdById (FK to users)
+├── createdAt
+└── updatedAt
+
+github_scan_configs
+├── id (PK)
+├── githubOrgName
+├── organizationId (FK to organizations)
+├── createdById (FK to users)
+├── createdAt
+├── lastScanAt
+└── status
+
+github_scan_results
+├── id (PK)
+├── scanConfigId (FK to github_scan_configs)
+├── repositoryName
+├── repositoryUrl
+├── hasAiUsage
+├── aiLibraries (array)
+├── aiFrameworks (array)
+├── scanDate
+├── addedToRisk
+├── confidenceScore
+└── detectionType
+
+github_scan_summaries
+├── id (PK)
+├── scanConfigId (FK to github_scan_configs)
+├── totalRepositories
+├── repositoriesWithAi
+├── scanDate
+└── organizationId (FK to organizations)
+
+bias_analysis_scans
+├── id (PK)
+├── name
+├── description
+├── status
+├── dataSource
+├── aiSystemId (FK to ai_systems)
+├── organizationId (FK to organizations)
+├── createdById (FK to users)
+├── createdAt
+└── updatedAt
+
+bias_analysis_results
+├── id (PK)
+├── scanId (FK to bias_analysis_scans)
+├── biasType
+├── biasScore
+├── description
+├── attributeContributions (jsonb)
+├── recommendedActions
+├── organizationId (FK to organizations)
 ├── createdAt
 └── updatedAt
 ```
@@ -232,6 +286,9 @@ DATABASE_URL=postgresql://username:password@localhost:5432/ai_governance
 
 # Session
 SESSION_SECRET=your_session_secret
+
+# GitHub API (optional, for AI Usage Finder)
+GITHUB_API_KEY=your_github_personal_access_token
 ```
 
 ### Database Setup
@@ -250,13 +307,27 @@ npm run db:push
 
 This will create all necessary tables and relationships in the database.
 
-3. Seed initial data (optional):
+3. Seed initial data:
 
 ```bash
-npm run db:seed
+./seed-db.sh
 ```
 
-This will create initial roles, an admin organization, and a demo user.
+This script will seed the database with:
+- Roles (Administrator, User, Analyst, Viewer)
+- Organizations (Admin Organization, Finance Corp., TechCorp Inc.)
+- Users (admin, demo_user, viewer_user, tech_admin)
+- AI Systems (chatbots, fraud detection, HR systems, trading bots, recommendation engines)
+- Risk items and compliance issues
+- GitHub scan configurations and results
+- Bias analysis scan data
+
+The script detects if you're running in a local environment and uses the appropriate seed method.
+
+Sample login credentials:
+- Admin User: username `admin`, password `adminpassword`
+- Demo User: username `demo_user`, password `demopassword`
+- Viewer User: username `viewer_user`, password `viewerpassword`
 
 ## Running the Application
 
@@ -311,14 +382,14 @@ The API follows RESTful principles and is organized by resource:
 
 ### Authentication
 
-- `POST /api/register`: Register a new user
-- `POST /api/login`: Log in a user
-- `POST /api/logout`: Log out the current user
-- `GET /api/user`: Get the current authenticated user
+- `POST /api/auth/register`: Register a new user
+- `POST /api/auth/login`: Log in a user
+- `POST /api/auth/logout`: Log out the current user
+- `GET /api/auth/user`: Get the current authenticated user
 
 ### Organizations
 
-- `GET /api/organizations`: Get all organizations for the current user
+- `GET /api/organizations`: Get all organizations
 - `POST /api/organizations`: Create a new organization
 - `GET /api/organizations/:id`: Get a specific organization
 - `PUT /api/organizations/:id`: Update an organization
@@ -326,15 +397,15 @@ The API follows RESTful principles and is organized by resource:
 
 ### Users
 
-- `GET /api/users`: Get all users in the organization
-- `POST /api/users`: Create a new user
+- `GET /api/users`: Get all users (admin only)
+- `POST /api/users`: Create a new user (admin only)
 - `GET /api/users/:id`: Get a specific user
 - `PUT /api/users/:id`: Update a user
-- `DELETE /api/users/:id`: Delete a user
+- `DELETE /api/users/:id`: Delete a user (admin only)
 
 ### AI Systems
 
-- `GET /api/ai-systems`: Get all AI systems in the organization
+- `GET /api/ai-systems`: Get all AI systems for the organization
 - `POST /api/ai-systems`: Create a new AI system
 - `GET /api/ai-systems/:id`: Get a specific AI system
 - `PUT /api/ai-systems/:id`: Update an AI system
@@ -342,31 +413,39 @@ The API follows RESTful principles and is organized by resource:
 
 ### Risk Items
 
-- `GET /api/risk-items`: Get all risk items in the organization
+- `GET /api/risk-items`: Get all risk items for the organization
 - `POST /api/risk-items`: Create a new risk item
 - `GET /api/risk-items/:id`: Get a specific risk item
 - `PUT /api/risk-items/:id`: Update a risk item
 - `DELETE /api/risk-items/:id`: Delete a risk item
 
-### Compliance Issues
+### GitHub Repository Scanning
 
-- `GET /api/compliance-issues`: Get all compliance issues in the organization
-- `POST /api/compliance-issues`: Create a new compliance issue
-- `GET /api/compliance-issues/:id`: Get a specific compliance issue
-- `PUT /api/compliance-issues/:id`: Update a compliance issue
-- `DELETE /api/compliance-issues/:id`: Delete a compliance issue
+- `GET /api/github-scan/configs`: Get all GitHub scan configurations
+- `POST /api/github-scan/configs`: Create a new scan configuration
+- `POST /api/github-scan/start/:configId`: Start a GitHub scan
+- `GET /api/github-scan/results/:configId`: Get scan results for a configuration
+- `POST /api/github-scan/add-to-risk/:resultId`: Add a scan result to the risk register
+
+### Bias Analysis
+
+- `GET /api/bias-analysis/scans`: Get all bias analysis scans
+- `POST /api/bias-analysis/scans`: Create a new bias analysis scan
+- `POST /api/bias-analysis/analyze/:scanId`: Analyze data for bias
+- `GET /api/bias-analysis/results/:scanId`: Get results for a bias analysis scan
 
 ## Authentication and Authorization
 
 The application uses session-based authentication with Passport.js. User passwords are securely hashed using scrypt. The application implements role-based access control (RBAC) to ensure users can only access resources they are authorized to use.
 
-Roles have associated permissions that control what actions a user can perform. The current roles include:
+Roles have associated permissions that control what actions a user can perform:
 
-- **Admin**: Full access to all features and data
-- **User**: Limited access to features and data
-- **Viewer**: Read-only access to features and data
+- **Administrator**: Full access to all features and data across the platform with permissions: `['admin', 'manage_users', 'manage_organizations', 'view_all', 'edit_all']`
+- **User**: Standard access with permissions: `['view_own', 'edit_own']`
+- **Analyst**: Advanced access for analysis with permissions: `['view_all', 'edit_own']`
+- **Viewer**: Read-only access with permissions: `['view_own']`
 
-Users are associated with an organization, and can only access data within their organization, implementing multi-tenancy at the data level.
+Users are associated with an organization, and can only access data within their organization, implementing multi-tenancy at the data level. System administrators can manage all organizations through the Platform Admin interface.
 
 ---
 

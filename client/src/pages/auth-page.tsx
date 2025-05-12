@@ -18,7 +18,7 @@ export default function AuthPage() {
           <div className="text-center mb-8">
             <div className="flex items-center justify-center">
               <div className="bg-primary text-white font-bold rounded-lg p-2 flex items-center justify-center">
-                <span>AURA AI</span>
+                <span>A<span className="lowercase">ura</span> AI</span>
               </div>
               <div className="ml-2 text-xl font-bold text-gray-900">Govern</div>
             </div>
@@ -35,9 +35,9 @@ export default function AuthPage() {
       </div>
 
       {/* Hero Section */}
-      <div className="hidden lg:block w-1/2 bg-gradient-to-tr from-primary-700 to-primary-900 p-12 text-white">
+      <div className="hidden lg:block w-1/2 bg-gradient-to-tr from-primary-700 to-primary-900 p-12">
         <div className="h-full flex flex-col justify-center max-w-lg mx-auto">
-          <h1 className="text-4xl font-bold mb-6">
+          <h1 className="text-4xl font-bold mb-6 text-gray-900">
             Responsible AI Governance Made Simple
           </h1>
           <div className="space-y-6">
@@ -46,8 +46,8 @@ export default function AuthPage() {
                 <span className="text-xl">🔍</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl">MAP</h3>
-                <p className="mt-1">
+                <h3 className="font-medium text-xl text-gray-900">MAP</h3>
+                <p className="mt-1 text-gray-900">
                   Discover and document your AI footprint across the organization
                 </p>
               </div>
@@ -57,8 +57,8 @@ export default function AuthPage() {
                 <span className="text-xl">📊</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl">MEASURE</h3>
-                <p className="mt-1">
+                <h3 className="font-medium text-xl text-gray-900">MEASURE</h3>
+                <p className="mt-1 text-gray-900">
                   Evaluate compliance, risks, bias, and potential data leaks
                 </p>
               </div>
@@ -68,8 +68,8 @@ export default function AuthPage() {
                 <span className="text-xl">🛠️</span>
               </div>
               <div className="ml-4">
-                <h3 className="font-medium text-xl">MANAGE</h3>
-                <p className="mt-1">
+                <h3 className="font-medium text-xl text-gray-900">MANAGE</h3>
+                <p className="mt-1 text-gray-900">
                   Take control of your AI governance from development to deployment
                 </p>
               </div>
