@@ -178,7 +178,7 @@ export function FrontierModelAlerts() {
       return;
     }
 
-    if (!alertFormData.frontier_model_id) {
+    if (!alertFormData.frontierModelId) {
       toast({
         title: 'Error',
         description: 'Please select a frontier model',
@@ -187,7 +187,14 @@ export function FrontierModelAlerts() {
       return;
     }
 
-    createAlertMutation.mutate(alertFormData);
+    const payload = {
+      name: alertFormData.name,
+      frontierModelId: alertFormData.frontierModelId,
+      alertTypes: alertFormData.alertTypes,
+      alertFrequency: alertFormData.alertFrequency
+    };
+    
+    createAlertMutation.mutate(payload);
   };
 
   const handleCreateModel = () => {
@@ -352,11 +359,11 @@ export function FrontierModelAlerts() {
                     <TableCell className="font-medium">{alert.name}</TableCell>
                     <TableCell>{alert.model?.name || 'Unknown Model'}</TableCell>
                     <TableCell>
-                      <Badge variant={alert.alert_type === 'security' ? 'destructive' : 'secondary'}>
-                        {alert.alert_type === 'security' ? 'Security' : 'Feature'}
+                      <Badge variant={alert.alertTypes?.includes('security') ? 'destructive' : 'secondary'}>
+                        {alert.alertTypes?.includes('security') ? 'Security' : 'Feature'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{new Date(alert.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(alert.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -669,8 +676,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Security alert for ${selectedModel.name}`,
-                        alert_type: 'security',
-                        frontier_model_id: selectedModel.id
+                        alertTypes: ['security'],
+                        frontierModelId: selectedModel.id,
+                        alertFrequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
@@ -684,8 +692,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Feature alert for ${selectedModel.name}`,
-                        alert_type: 'feature',
-                        frontier_model_id: selectedModel.id
+                        alertTypes: ['feature'],
+                        frontierModelId: selectedModel.id,
+                        alertFrequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);

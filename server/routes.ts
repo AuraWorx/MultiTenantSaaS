@@ -1917,22 +1917,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all alerts for a user's organization
   app.get("/api/frontier-model-alerts", isAuthenticated, async (req, res) => {
     try {
-      const orgId = req.user.organization[0];
+      const orgId = req.user.organization.id;
       
       const alerts = await db.query.frontierModelAlerts.findMany({
-        where: eq(frontierModelAlerts.organization_id, orgId),
+        where: eq(frontierModelAlerts.organizationId, orgId),
         with: {
           model: true,
           user: {
             columns: {
               id: true,
               username: true,
-              first_name: true,
-              last_name: true
+              firstName: true,
+              lastName: true
             }
           }
         },
-        orderBy: [desc(frontierModelAlerts.created_at)]
+        orderBy: [desc(frontierModelAlerts.createdAt)]
       });
       
       res.json(alerts);
