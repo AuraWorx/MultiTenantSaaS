@@ -479,39 +479,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      const organizationId = user.organization?.id || user.organizationId;
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
 
-      // Use static data for now to show the dashboard
+      // Get actual counts from database
+      // Count AI Systems - get from GitHub scan summaries
+      const aiSystemsCount = await db.select({ count: sql`count(*)` })
+        .from(githubScanSummaries)
+        .where(eq(githubScanSummaries.organization_id, organizationId))
+        .then(result => Number(result[0]?.count || 0));
+
+      // Count compliance issues
+      const complianceIssuesCount = await db.select({ count: sql`count(*)` })
+        .from(complianceIssues)
+        .where(eq(complianceIssues.organization_id, organizationId))
+        .then(result => Number(result[0]?.count || 0));
+
+      // Count open risks
+      const openRisksCount = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.organization_id, organizationId),
+          eq(riskItems.status, 'open')
+        ))
+        .then(result => Number(result[0]?.count || 0));
+
       const stats = {
-        aiSystemsCount: 5,
-        complianceIssuesCount: 3,
-        openRisksCount: 2
+        aiSystemsCount: aiSystemsCount || 0,
+        complianceIssuesCount: complianceIssuesCount || 0,
+        openRisksCount: openRisksCount || 0
       };
 
-      // Get recent activities (mock data for now)
+      // Get recent activities (from GitHub scan results, risks, and compliance issues)
+      // First get the latest scan results
+      const recentScans = await db.select({
+        id: githubScanResults.id,
+        repoName: githubScanResults.repository_name,
+        createdAt: githubScanResults.created_at,
+      })
+      .from(githubScanResults)
+      .where(eq(githubScanResults.organization_id, organizationId))
+      .orderBy(desc(githubScanResults.created_at))
+      .limit(5);
+      
+      // Then get recent risk items
+      const recentRisks = await db.select({
+        id: riskItems.id,
+        title: riskItems.title,
+        createdAt: riskItems.created_at,
+      })
+      .from(riskItems)
+      .where(eq(riskItems.organization_id, organizationId))
+      .orderBy(desc(riskItems.created_at))
+      .limit(5);
+      
+      // Format activities from the combined data
       const activities = [
-        {
-          id: 1,
-          type: 'success',
-          message: 'New AI system added to inventory',
-          entity: 'Customer Support Bot',
-          timestamp: new Date(Date.now() - 7200000) // 2 hours ago
-        },
-        {
-          id: 2,
-          type: 'warning',
-          message: 'Compliance issue detected in',
-          entity: 'Product Recommendation Engine',
-          timestamp: new Date(Date.now() - 86400000) // 1 day ago
-        },
-        {
-          id: 3,
-          type: 'info',
-          message: 'Risk assessment updated for',
-          entity: 'Content Moderation AI',
-          timestamp: new Date(Date.now() - 172800000) // 2 days ago
-        }
-      ];
+        ...recentScans.map(scan => ({
+          id: scan.id,
+          type: 'info' as const,
+          message: 'AI usage scan completed for',
+          entity: scan.repoName,
+          timestamp: scan.createdAt
+        })),
+        ...recentRisks.map(risk => ({
+          id: risk.id + 1000, // Ensure unique IDs
+          type: 'warning' as const,
+          message: 'Risk item created:',
+          entity: risk.title,
+          timestamp: risk.createdAt
+        }))
+      ]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 5);
 
       res.json({
         stats,
