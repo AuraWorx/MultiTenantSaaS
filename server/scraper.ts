@@ -31,7 +31,7 @@ async function scrapeModelUpdates(model: string, category: 'security' | 'feature
     const searchUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchTerm)}&hl=en-US&gl=US&ceid=US:en`;
     
     // Parse RSS feed
-    const parser = new parseRSS();
+    const parser = new Parser();
     const feed = await parser.parseURL(searchUrl);
     
     // Extract relevant articles
