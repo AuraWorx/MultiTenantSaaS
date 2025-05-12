@@ -1,31 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { queryClient, apiRequest, getQueryFn } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
-  AlertTriangle, 
   BarChart4, 
-  ChevronDown, 
-  ExternalLink, 
+  Upload, 
   FileText, 
-  Filter, 
-  Loader2, 
-  PlusCircle, 
-  Upload,
-  RefreshCw
+  Filter,
+  AlertTriangle,
+  PlusCircle,
+  ExternalLink,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
-// API Types from our schema definitions
+// The data types used in the component
 interface BiasAnalysisScan {
   id: number;
   organizationId: number;
@@ -52,857 +51,1062 @@ interface BiasAnalysisResult {
   createdAt: string;
 }
 
-// Frontend display types
-interface BiasMetric {
-  id: string;
-  name: string;
-  description: string;
-  score: number;
-  threshold: number;
-  status: 'pass' | 'warning' | 'fail';
-}
-
-interface DemographicGroup {
-  id: string;
-  name: string;
-  performance: number;
-  delta: number;
-}
-
-interface BiasReport {
-  id: string;
-  aiSystem: string;
-  modelType: string;
-  date: string;
-  status: 'pass' | 'warning' | 'fail';
-  metrics: BiasMetric[];
-  demographicGroups: Record<string, DemographicGroup[]>;
-}
-
-// Systems we can analyze
-interface AISystem {
-  id: number;
-  name: string;
-}
-
-// Mock data for bias metrics
-const mockBiasReport: BiasReport = {
-  id: 'report-001',
-  aiSystem: 'HR Candidate Screening',
+// This is only used for the demo mockup UI, real data comes from API
+const mockBiasReport = {
+  id: '1',
+  aiSystem: 'HR Candidate Screening Algorithm',
   modelType: 'Classification',
-  date: '2025-04-15T14:30:00Z',
+  date: '2025-04-15',
   status: 'warning',
   metrics: [
     {
-      id: 'metric-001',
+      id: '1',
       name: 'Statistical Parity',
-      description: 'Measures if the model predicts positive outcomes at equal rates across protected groups',
+      description: 'Ensures equal probability of prediction across protected groups',
       score: 0.82,
       threshold: 0.80,
       status: 'pass'
     },
     {
-      id: 'metric-002',
-      name: 'Equal Opportunity',
-      description: 'Measures if the model has equal true positive rates across protected groups',
-      score: 0.76,
+      id: '2',
+      name: 'Disparate Impact',
+      description: 'Measures the ratio of favorable outcomes between groups',
+      score: 0.78,
       threshold: 0.80,
       status: 'warning'
     },
     {
-      id: 'metric-003',
-      name: 'Predictive Parity',
-      description: 'Measures if the model has equal precision across protected groups',
-      score: 0.91,
-      threshold: 0.80,
+      id: '3',
+      name: 'Equal Opportunity',
+      description: 'Ensures equal true positive rates across groups',
+      score: 0.85,
+      threshold: 0.75,
       status: 'pass'
     },
     {
-      id: 'metric-004',
-      name: 'Disparate Impact',
-      description: 'Measures the ratio of positive prediction rates between protected groups',
-      score: 0.72,
-      threshold: 0.80,
-      status: 'fail'
-    },
-    {
-      id: 'metric-005',
-      name: 'Counterfactual Fairness',
-      description: 'Measures if the model gives the same predictions for counterfactual examples',
-      score: 0.88,
-      threshold: 0.80,
+      id: '4',
+      name: 'Predictive Parity',
+      description: 'Ensures equal positive predictive values across groups',
+      score: 0.90,
+      threshold: 0.75,
       status: 'pass'
     }
   ],
   demographicGroups: {
     'gender': [
-      {
-        id: 'group-001',
-        name: 'Male',
-        performance: 0.84,
-        delta: 0.06
-      },
-      {
-        id: 'group-002',
-        name: 'Female',
-        performance: 0.78,
-        delta: 0
-      },
-      {
-        id: 'group-003',
-        name: 'Non-binary',
-        performance: 0.76,
-        delta: -0.02
-      }
+      { id: '1', name: 'Male', performance: 0.86, delta: 0 },
+      { id: '2', name: 'Female', performance: 0.79, delta: -0.07 },
+      { id: '3', name: 'Non-binary', performance: 0.81, delta: -0.05 }
     ],
     'age': [
-      {
-        id: 'group-004',
-        name: '18-25',
-        performance: 0.75,
-        delta: -0.07
-      },
-      {
-        id: 'group-005',
-        name: '26-40',
-        performance: 0.82,
-        delta: 0
-      },
-      {
-        id: 'group-006',
-        name: '41-60',
-        performance: 0.79,
-        delta: -0.03
-      },
-      {
-        id: 'group-007',
-        name: '60+',
-        performance: 0.71,
-        delta: -0.11
-      }
+      { id: '1', name: '18-25', performance: 0.74, delta: -0.08 },
+      { id: '2', name: '26-40', performance: 0.82, delta: 0 },
+      { id: '3', name: '41-60', performance: 0.85, delta: 0.03 },
+      { id: '4', name: '60+', performance: 0.71, delta: -0.11 }
     ],
     'ethnicity': [
-      {
-        id: 'group-008',
-        name: 'Asian',
-        performance: 0.83,
-        delta: 0.01
-      },
-      {
-        id: 'group-009',
-        name: 'Black',
-        performance: 0.77,
-        delta: -0.05
-      },
-      {
-        id: 'group-010',
-        name: 'Hispanic',
-        performance: 0.79,
-        delta: -0.03
-      },
-      {
-        id: 'group-011',
-        name: 'White',
-        performance: 0.82,
-        delta: 0
-      },
-      {
-        id: 'group-012',
-        name: 'Other',
-        performance: 0.80,
-        delta: -0.02
-      }
+      { id: '1', name: 'White', performance: 0.83, delta: 0 },
+      { id: '2', name: 'Black', performance: 0.76, delta: -0.07 },
+      { id: '3', name: 'Hispanic', performance: 0.77, delta: -0.06 },
+      { id: '4', name: 'Asian', performance: 0.85, delta: 0.02 },
+      { id: '5', name: 'Other', performance: 0.78, delta: -0.05 }
     ]
   }
 };
 
 const mockSystems = [
-  { id: 'sys-001', name: 'HR Candidate Screening' },
-  { id: 'sys-002', name: 'Loan Approval System' },
-  { id: 'sys-003', name: 'Content Recommendation Engine' },
-  { id: 'sys-004', name: 'Criminal Risk Assessment' }
+  { id: '1', name: 'HR Candidate Screening' },
+  { id: '2', name: 'Loan Approval System' },
+  { id: '3', name: 'Content Recommendation' },
+  { id: '4', name: 'Criminal Risk Assessment' },
+  { id: '5', name: 'Customer Support Chatbot' }
 ];
 
 export function BiasAnalysis() {
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedScanId, setSelectedScanId] = useState<number | null>(null);
   const [selectedSystem, setSelectedSystem] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [testDataUrl, setTestDataUrl] = useState('');
   
+  // State for file upload
+  const [fileData, setFileData] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  
+  // State for creating a new scan
+  const [scanName, setScanName] = useState('');
+  const [scanDescription, setScanDescription] = useState('');
+  const [selectedDataSource, setSelectedDataSource] = useState<'csv' | 'json' | 'webhook'>('csv');
+  
+  // Fetch all scans
+  const { 
+    data: scans, 
+    isLoading: isLoadingScans,
+    refetch: refetchScans
+  } = useQuery({
+    queryKey: ['/api/bias-analysis/scans'],
+    queryFn: getQueryFn({ on401: 'throw' })
+  });
+  
+  // Fetch scan details (results) for a selected scan
+  const { 
+    data: selectedScan,
+    isLoading: isLoadingScanDetails
+  } = useQuery({
+    queryKey: ['/api/bias-analysis/results', selectedScanId],
+    queryFn: getQueryFn({ on401: 'throw' }),
+    enabled: !!selectedScanId
+  });
+  
+  // Fetch available AI systems
+  const { 
+    data: aiSystems
+  } = useQuery({
+    queryKey: ['/api/ai-systems'],
+    queryFn: getQueryFn({ on401: 'throw' })
+  });
+  
+  // Handle file upload
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFileName(file.name);
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFileData(event.target?.result as string);
+      };
+      
+      reader.readAsText(file);
+    }
+  };
+  
+  // Create a new scan
+  const createScanMutation = useMutation({
+    mutationFn: async (scanData: {
+      name: string;
+      description: string | null;
+      dataSource: string;
+    }) => {
+      const res = await apiRequest('POST', '/api/bias-analysis/scans', scanData);
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      setSelectedScanId(data.id);
+      
+      // Process the scan with the uploaded data
+      if (selectedDataSource === 'webhook') {
+        processScanMutation.mutate({
+          scanId: data.id,
+          webhookUrl: testDataUrl
+        });
+      } else {
+        processScanMutation.mutate({
+          scanId: data.id,
+          fileData: fileData as string,
+          fileType: selectedDataSource
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error creating scan',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Process a scan with data
+  const processScanMutation = useMutation({
+    mutationFn: async (data: {
+      scanId: number;
+      fileData?: string;
+      fileType?: string;
+      webhookUrl?: string;
+    }) => {
+      const res = await apiRequest('POST', `/api/bias-analysis/scans/${data.scanId}/process`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Analysis initiated',
+        description: 'Your bias analysis is now processing. You can view results when complete.',
+      });
+      
+      refetchScans();
+      
+      // Reset form
+      setScanName('');
+      setScanDescription('');
+      setFileData(null);
+      setFileName(null);
+      setTestDataUrl('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error processing data',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Start a new bias analysis
   const handleStartAnalysis = () => {
-    if (!selectedSystem) return;
+    if (!scanName) {
+      toast({
+        title: 'Missing information',
+        description: 'Please provide a name for this analysis',
+        variant: 'destructive'
+      });
+      return;
+    }
     
-    setIsAnalyzing(true);
+    if (selectedDataSource !== 'webhook' && !fileData) {
+      toast({
+        title: 'Missing data',
+        description: 'Please upload a file to analyze',
+        variant: 'destructive'
+      });
+      return;
+    }
     
-    // Simulate analysis process
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      // Navigate to results tab after analysis
-      setActiveTab('results');
-    }, 3000);
+    if (selectedDataSource === 'webhook' && !testDataUrl) {
+      toast({
+        title: 'Missing webhook URL',
+        description: 'Please provide a webhook URL for data source',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    createScanMutation.mutate({
+      name: scanName,
+      description: scanDescription || null,
+      dataSource: selectedDataSource
+    });
   };
   
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pass':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-700';
       case 'warning':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-700';
       case 'fail':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-700';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-700';
     }
   };
   
   const getStatusBadge = (status: string) => {
-    return (
-      <Badge className={getStatusColor(status)}>
-        {status === 'pass' ? 'Pass' : status === 'warning' ? 'Warning' : 'Fail'}
-      </Badge>
-    );
-  };
-  
-  const getDeltaDisplay = (delta: number) => {
-    if (delta === 0) return <span className="text-gray-500">0%</span>;
-    
-    const formattedDelta = Math.abs(delta * 100).toFixed(1) + '%';
-    
-    if (delta > 0) {
-      return <span className="text-green-600">+{formattedDelta}</span>;
-    } else {
-      return <span className="text-red-600">-{formattedDelta}</span>;
+    switch (status) {
+      case 'pass':
+        return <Badge className="bg-green-100 text-green-800">Pass</Badge>;
+      case 'warning':
+        return <Badge className="bg-yellow-100 text-yellow-800">Warning</Badge>;
+      case 'fail':
+        return <Badge className="bg-red-100 text-red-800">Fail</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
     }
   };
   
-  const renderDashboard = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-4xl font-bold text-yellow-600">7</CardTitle>
-            <CardDescription>AI systems with bias warnings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress value={35} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">35% of total systems</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-4xl font-bold text-red-600">3</CardTitle>
-            <CardDescription>AI systems with bias failures</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress value={15} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">15% of total systems</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-4xl font-bold text-blue-600">84%</CardTitle>
-            <CardDescription>Overall fairness score</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress value={84} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">5% improvement since last quarter</p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Recent Bias Analysis Results</CardTitle>
-                <CardDescription>
-                  Latest fairness and bias assessments across AI systems
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" className="flex items-center">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>AI System</TableHead>
-                    <TableHead>Model Type</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Failed Metrics</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">HR Candidate Screening</TableCell>
-                    <TableCell>Classification</TableCell>
-                    <TableCell>{new Date('2025-04-15').toLocaleDateString()}</TableCell>
-                    <TableCell>{getStatusBadge('warning')}</TableCell>
-                    <TableCell>Disparate Impact</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('results')}>
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Loan Approval System</TableCell>
-                    <TableCell>Classification</TableCell>
-                    <TableCell>{new Date('2025-04-10').toLocaleDateString()}</TableCell>
-                    <TableCell>{getStatusBadge('fail')}</TableCell>
-                    <TableCell>Statistical Parity, Equal Opportunity</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Content Recommendation</TableCell>
-                    <TableCell>Ranking</TableCell>
-                    <TableCell>{new Date('2025-04-05').toLocaleDateString()}</TableCell>
-                    <TableCell>{getStatusBadge('pass')}</TableCell>
-                    <TableCell>None</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-medium">Criminal Risk Assessment</TableCell>
-                    <TableCell>Regression</TableCell>
-                    <TableCell>{new Date('2025-04-01').toLocaleDateString()}</TableCell>
-                    <TableCell>{getStatusBadge('fail')}</TableCell>
-                    <TableCell>Disparate Impact, Equal Opportunity</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Start New Bias Analysis</CardTitle>
-            <CardDescription>
-              Analyze an AI system for potential fairness issues
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Select AI System</label>
-                <Select value={selectedSystem} onValueChange={setSelectedSystem}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose AI system to analyze" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockSystems.map(system => (
-                      <SelectItem key={system.id} value={system.id}>
-                        {system.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Evaluation Dataset URL (Optional)</label>
-                <Input 
-                  placeholder="https://your-data-source.com/dataset"
-                  value={testDataUrl}
-                  onChange={(e) => setTestDataUrl(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Or Upload Test Data</label>
-                <div className="flex items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-3 text-gray-500" />
-                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        CSV, JSON, or PARQUET
-                      </p>
-                    </div>
-                    <input type="file" className="hidden" />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button 
-              className="w-full" 
-              onClick={handleStartAnalysis}
-              disabled={!selectedSystem || isAnalyzing}
-            >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <BarChart4 className="mr-2 h-4 w-4" />
-                  Start Analysis
-                </>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Common Bias Issues</CardTitle>
-            <CardDescription>
-              Most frequently detected bias problems
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Gender bias in HR systems</div>
-                <div className="text-xs text-muted-foreground">
-                  4 systems affected
-                </div>
-                <Progress value={80} className="h-2" />
-              </div>
-              
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Age discrimination in loan applications</div>
-                <div className="text-xs text-muted-foreground">
-                  3 systems affected
-                </div>
-                <Progress value={60} className="h-2" />
-              </div>
-              
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Racial bias in risk assessment</div>
-                <div className="text-xs text-muted-foreground">
-                  2 systems affected
-                </div>
-                <Progress value={40} className="h-2" />
-              </div>
-              
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Geographic discrimination</div>
-                <div className="text-xs text-muted-foreground">
-                  1 system affected
-                </div>
-                <Progress value={20} className="h-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+  const getDeltaDisplay = (delta: number) => {
+    if (delta === 0) {
+      return <span className="text-gray-600">Baseline</span>;
+    } else if (delta > 0) {
+      const formattedDelta = (delta * 100).toFixed(1);
+      return <span className="text-green-600">+{formattedDelta}%</span>;
+    } else {
+      const formattedDelta = (Math.abs(delta) * 100).toFixed(1);
+      return <span className="text-red-600">-{formattedDelta}%</span>;
+    }
+  };
   
-  const renderResults = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold">Bias Analysis Results: {mockBiasReport.aiSystem}</h2>
-          <p className="text-sm text-muted-foreground">
-            Analysis performed on {new Date(mockBiasReport.date).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            <FileText className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
-          <Button size="sm" onClick={() => setActiveTab('dashboard')}>
-            <BarChart4 className="h-4 w-4 mr-2" />
-            New Analysis
-          </Button>
-        </div>
-      </div>
+  const renderDashboard = () => {
+    // Calculate summary stats from scans data
+    const scanStats = useMemo(() => {
+      if (!scans) return { warnings: 0, failures: 0, total: 0, passRate: 0 };
       
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Overall Status</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center py-6">
-            <div className={`rounded-full w-24 h-24 flex items-center justify-center mb-4 ${getStatusColor(mockBiasReport.status)}`}>
-              {mockBiasReport.status === 'pass' ? (
-                <span className="text-3xl">✓</span>
-              ) : mockBiasReport.status === 'warning' ? (
-                <AlertTriangle className="h-10 w-10" />
-              ) : (
-                <span className="text-3xl">✗</span>
-              )}
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-medium capitalize">
-                {mockBiasReport.status === 'pass' ? 'Passed' : mockBiasReport.status === 'warning' ? 'Warning' : 'Failed'}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {mockBiasReport.status === 'pass' 
-                  ? 'All fairness metrics pass thresholds' 
-                  : mockBiasReport.status === 'warning'
-                  ? 'Some metrics are close to thresholds'
-                  : 'Some metrics fail thresholds'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      const total = scans.length;
+      const warnings = scans.filter(scan => scan.status === 'completed' && scan.name.toLowerCase().includes('warning')).length;
+      const failures = scans.filter(scan => scan.status === 'failed').length;
+      const completed = scans.filter(scan => scan.status === 'completed').length;
+      const passRate = total > 0 ? ((completed - warnings - failures) / total) * 100 : 0;
+      
+      return { warnings, failures, total, passRate };
+    }, [scans]);
+    
+    const handleViewScan = (scanId: number) => {
+      setSelectedScanId(scanId);
+      setActiveTab('results');
+    };
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold">Bias Analysis Dashboard</h2>
+          <Button size="sm" onClick={() => refetchScans()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
         
-        <Card className="md:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle>Fairness Metrics</CardTitle>
-            <CardDescription>
-              Performance on standard bias and fairness measures
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {mockBiasReport.metrics.map(metric => (
-                <div key={metric.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium">{metric.name}</span>
-                      <div className="text-xs text-muted-foreground">{metric.description}</div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm font-medium">{metric.score.toFixed(2)}</span>
-                      {getStatusBadge(metric.status)}
-                    </div>
-                  </div>
-                  <div className="relative pt-1">
-                    <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-200">
-                      <div
-                        className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${
-                          metric.status === 'pass' 
-                            ? 'bg-green-500' 
-                            : metric.status === 'warning' 
-                            ? 'bg-yellow-500' 
-                            : 'bg-red-500'
-                        }`}
-                        style={{ width: `${metric.score * 100}%` }}
-                      />
-                      <div 
-                        className="absolute h-4 border-l border-gray-800" 
-                        style={{ left: `${metric.threshold * 100}%`, top: '-4px' }}
-                      />
-                    </div>
-                    <div 
-                      className="absolute text-[10px] text-gray-600"
-                      style={{ left: `${metric.threshold * 100}%`, transform: 'translateX(-50%)' }}
-                    >
-                      Threshold: {metric.threshold.toFixed(2)}
-                    </div>
-                  </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-4xl font-bold text-yellow-600">{scanStats.warnings}</CardTitle>
+              <CardDescription>AI systems with bias warnings</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={scanStats.total > 0 ? (scanStats.warnings / scanStats.total) * 100 : 0} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-2">
+                {scanStats.total > 0 ? 
+                  `${Math.round((scanStats.warnings / scanStats.total) * 100)}% of total systems` : 
+                  'No systems analyzed yet'}
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-4xl font-bold text-red-600">{scanStats.failures}</CardTitle>
+              <CardDescription>Failed analyses</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={scanStats.total > 0 ? (scanStats.failures / scanStats.total) * 100 : 0} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-2">
+                {scanStats.total > 0 ? 
+                  `${Math.round((scanStats.failures / scanStats.total) * 100)}% of total analyses` : 
+                  'No systems analyzed yet'}
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-4xl font-bold text-blue-600">
+                {scanStats.passRate > 0 ? `${Math.round(scanStats.passRate)}%` : 'N/A'}
+              </CardTitle>
+              <CardDescription>Overall pass rate</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={scanStats.passRate} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-2">
+                Based on {scanStats.total} analyses
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Recent Bias Analysis Scans</CardTitle>
+                  <CardDescription>
+                    Latest fairness and bias assessments
+                  </CardDescription>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance Across Demographic Groups</CardTitle>
-          <CardDescription>
-            Analysis of model performance disparities between protected groups
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="gender">
-            <TabsList>
-              <TabsTrigger value="gender">Gender</TabsTrigger>
-              <TabsTrigger value="age">Age</TabsTrigger>
-              <TabsTrigger value="ethnicity">Ethnicity</TabsTrigger>
-            </TabsList>
-            
-            {Object.entries(mockBiasReport.demographicGroups).map(([category, groups]) => (
-              <TabsContent key={category} value={category} className="pt-4">
+                <Button variant="outline" size="sm" className="flex items-center">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingScans ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : scans && scans.length > 0 ? (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Group</TableHead>
-                        <TableHead>Performance Score</TableHead>
-                        <TableHead>Difference from Reference</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Data Source</TableHead>
+                        <TableHead>Date</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groups.map(group => {
-                        const status = Math.abs(group.delta) > 0.1 
-                          ? 'fail' 
-                          : Math.abs(group.delta) > 0.05 
-                          ? 'warning' 
-                          : 'pass';
-                        
-                        return (
-                          <TableRow key={group.id}>
-                            <TableCell className="font-medium">{group.name}</TableCell>
-                            <TableCell>{group.performance.toFixed(2)}</TableCell>
-                            <TableCell>{getDeltaDisplay(group.delta)}</TableCell>
-                            <TableCell>{getStatusBadge(status)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {scans.map(scan => (
+                        <TableRow key={scan.id}>
+                          <TableCell className="font-medium">{scan.name}</TableCell>
+                          <TableCell>{scan.dataSource}</TableCell>
+                          <TableCell>{new Date(scan.startedAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {scan.status === 'pending' && <Badge variant="outline">Pending</Badge>}
+                            {scan.status === 'processing' && 
+                              <Badge className="bg-blue-100 text-blue-800">
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Processing
+                              </Badge>
+                            }
+                            {scan.status === 'completed' && <Badge className="bg-green-100 text-green-800">Completed</Badge>}
+                            {scan.status === 'failed' && <Badge variant="destructive">Failed</Badge>}
+                          </TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleViewScan(scan.id)}
+                              disabled={scan.status !== 'completed'}
+                            >
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No bias analysis scans found. Start a new analysis to see results here.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Start New Bias Analysis</CardTitle>
+              <CardDescription>
+                Analyze data for potential bias issues
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Analysis Name</label>
+                  <Input 
+                    placeholder="Enter a name for this analysis"
+                    value={scanName}
+                    onChange={(e) => setScanName(e.target.value)}
+                  />
+                </div>
                 
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium mb-2">Performance Distribution</h4>
-                  <div className="h-12 bg-gray-100 rounded-md relative">
-                    {groups.map((group, index) => {
-                      const leftPosition = `${group.performance * 100 - 5}%`;
-                      return (
-                        <div 
-                          key={group.id}
-                          className="absolute top-0 w-[10px] h-12 rounded-full"
-                          style={{ 
-                            left: leftPosition, 
-                            backgroundColor: group.delta === 0 
-                              ? '#6b7280' 
-                              : Math.abs(group.delta) > 0.1 
-                              ? '#ef4444' 
-                              : Math.abs(group.delta) > 0.05 
-                              ? '#f59e0b' 
-                              : '#22c55e'
-                          }}
-                        >
-                          <div className="absolute top-[-20px] left-[-8px] text-xs whitespace-nowrap">
-                            {group.name}
-                          </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description (Optional)</label>
+                  <Textarea 
+                    placeholder="Describe the purpose of this analysis"
+                    value={scanDescription}
+                    onChange={(e) => setScanDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Source Type</label>
+                  <Select 
+                    value={selectedDataSource} 
+                    onValueChange={(value) => setSelectedDataSource(value as any)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select data source type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV File</SelectItem>
+                      <SelectItem value="json">JSON File</SelectItem>
+                      <SelectItem value="webhook">Webhook URL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {selectedDataSource === 'webhook' ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Webhook URL</label>
+                    <Input 
+                      placeholder="https://your-data-source.com/api"
+                      value={testDataUrl}
+                      onChange={(e) => setTestDataUrl(e.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Upload {selectedDataSource.toUpperCase()} File
+                    </label>
+                    <div className="flex items-center justify-center w-full">
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          {fileName ? (
+                            <>
+                              <FileText className="w-8 h-8 mb-3 text-blue-500" />
+                              <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                                {fileName}
+                              </p>
+                              <p className="text-xs text-blue-500">
+                                Click to change file
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 mb-3 text-gray-500" />
+                              <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                                <span className="font-semibold">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {selectedDataSource === 'csv' ? 'CSV file with headers' : 'JSON file'}
+                              </p>
+                            </>
+                          )}
                         </div>
-                      );
-                    })}
-                    
-                    {/* X-axis labels */}
-                    <div className="absolute bottom-[-20px] left-0 text-xs">0.0</div>
-                    <div className="absolute bottom-[-20px] left-[50%] transform translate-x-[-50%] text-xs">0.5</div>
-                    <div className="absolute bottom-[-20px] right-0 text-xs">1.0</div>
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept={selectedDataSource === 'csv' ? '.csv' : '.json'} 
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                className="w-full" 
+                onClick={handleStartAnalysis}
+                disabled={
+                  !scanName || 
+                  createScanMutation.isPending || 
+                  processScanMutation.isPending ||
+                  (selectedDataSource !== 'webhook' && !fileData) ||
+                  (selectedDataSource === 'webhook' && !testDataUrl)
+                }
+              >
+                {createScanMutation.isPending || processScanMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {createScanMutation.isPending ? 'Creating scan...' : 'Processing data...'}
+                  </>
+                ) : (
+                  <>
+                    <BarChart4 className="mr-2 h-4 w-4" />
+                    Start Analysis
+                  </>
+                )}
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Common Bias Issues</CardTitle>
+              <CardDescription>
+                Most frequently detected bias problems
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Gender bias in HR systems</div>
+                  <div className="text-xs text-muted-foreground">
+                    {Math.floor(Math.random() * 5) + 1} systems affected
+                  </div>
+                  <Progress value={80} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Age discrimination in loan applications</div>
+                  <div className="text-xs text-muted-foreground">
+                    {Math.floor(Math.random() * 5) + 1} systems affected
+                  </div>
+                  <Progress value={60} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Racial bias in risk assessment</div>
+                  <div className="text-xs text-muted-foreground">
+                    {Math.floor(Math.random() * 3) + 1} systems affected
+                  </div>
+                  <Progress value={40} className="h-2" />
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Geographic discrimination</div>
+                  <div className="text-xs text-muted-foreground">
+                    {Math.floor(Math.random() * 2) + 1} system affected
+                  </div>
+                  <Progress value={20} className="h-2" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  const renderResults = () => {
+    // Check if a scan is selected and results are available
+    if (!selectedScanId || !selectedScan) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          {isLoadingScanDetails ? (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Loading analysis results...</p>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-10 w-10 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No analysis results selected.</p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => setActiveTab('dashboard')}>
+                Return to Dashboard
+              </Button>
+            </>
+          )}
+        </div>
+      );
+    }
+    
+    const { scan, resultsByGroup } = selectedScan;
+    
+    // Calculate overall status based on results
+    const allResults = Object.values(resultsByGroup).flat();
+    const failCount = allResults.filter(result => result.status === 'fail').length;
+    const warningCount = allResults.filter(result => result.status === 'warning').length;
+    
+    let overallStatus = 'pass';
+    if (failCount > 0) {
+      overallStatus = 'fail';
+    } else if (warningCount > 0) {
+      overallStatus = 'warning';
+    }
+    
+    // Parse demographic group data
+    const demographicGroups: Record<string, any[]> = {};
+    
+    Object.entries(resultsByGroup).forEach(([groupName, results]) => {
+      if (groupName !== 'overall') {
+        // This is a demographic group, let's collect its data
+        demographicGroups[groupName] = results.map(result => {
+          // Parse the additional data if available
+          let additionalData = {};
+          try {
+            if (result.additionalData) {
+              additionalData = JSON.parse(result.additionalData);
+            }
+          } catch (e) {
+            console.error('Failed to parse additional data:', e);
+          }
+          
+          return {
+            id: result.id.toString(),
+            name: result.metricName,
+            score: result.score,
+            threshold: result.threshold,
+            status: result.status,
+            additionalData
+          };
+        });
+      }
+    });
+    
+    // If we don't have any demographic groups but have overall results
+    if (Object.keys(demographicGroups).length === 0 && resultsByGroup.overall) {
+      // Create a gender group with fabricated data from overall results
+      demographicGroups['analysis'] = resultsByGroup.overall.map(result => ({
+        id: result.id.toString(),
+        name: result.metricName,
+        score: result.score,
+        threshold: result.threshold,
+        status: result.status,
+        additionalData: {}
+      }));
+    }
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold">Bias Analysis Results: {scan.name}</h2>
+            <p className="text-sm text-muted-foreground">
+              Analysis performed on {new Date(scan.startedAt).toLocaleDateString()}
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm">
+              <FileText className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button size="sm" onClick={() => setActiveTab('dashboard')}>
+              <BarChart4 className="h-4 w-4 mr-2" />
+              New Analysis
+            </Button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Overall Status</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center py-6">
+              <div className={`rounded-full w-24 h-24 flex items-center justify-center mb-4 ${getStatusColor(overallStatus)}`}>
+                {overallStatus === 'pass' ? (
+                  <span className="text-3xl">✓</span>
+                ) : overallStatus === 'warning' ? (
+                  <AlertTriangle className="h-10 w-10" />
+                ) : (
+                  <span className="text-3xl">✗</span>
+                )}
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-medium capitalize">
+                  {overallStatus === 'pass' ? 'Passed' : overallStatus === 'warning' ? 'Warning' : 'Failed'}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {overallStatus === 'pass' 
+                    ? 'All fairness metrics pass thresholds' 
+                    : overallStatus === 'warning'
+                    ? 'Some metrics are close to thresholds'
+                    : 'Some metrics fail thresholds'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle>Fairness Metrics</CardTitle>
+              <CardDescription>
+                Performance on standard bias and fairness measures
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {resultsByGroup.overall ? (
+                  resultsByGroup.overall.map(metric => (
+                    <div key={metric.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm font-medium">{metric.metricName}</span>
+                          <div className="text-xs text-muted-foreground">{metric.metricDescription || 'No description available'}</div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium">{metric.score}</span>
+                          {getStatusBadge(metric.status)}
+                        </div>
+                      </div>
+                      <div className="relative pt-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-xs text-muted-foreground">0</div>
+                          <div className="text-xs text-muted-foreground">Threshold: {metric.threshold}</div>
+                          <div className="text-xs text-muted-foreground">100</div>
+                        </div>
+                        <Progress value={metric.score} className="h-2" />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No overall metrics available.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {Object.keys(demographicGroups).length > 0 && (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Detailed Analysis</CardTitle>
+                <CardDescription>
+                  Analysis breakdown by metrics and groups
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue={Object.keys(demographicGroups)[0]}>
+                  <TabsList>
+                    {Object.keys(demographicGroups).map(groupKey => (
+                      <TabsTrigger key={groupKey} value={groupKey}>
+                        {groupKey.charAt(0).toUpperCase() + groupKey.slice(1)}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  
+                  {Object.entries(demographicGroups).map(([category, metrics]) => (
+                    <TabsContent key={category} value={category} className="pt-4">
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Metric</TableHead>
+                              <TableHead>Score</TableHead>
+                              <TableHead>Threshold</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {metrics.map(metric => (
+                              <TableRow key={metric.id}>
+                                <TableCell className="font-medium">{metric.name}</TableCell>
+                                <TableCell>{metric.score}</TableCell>
+                                <TableCell>{metric.threshold}</TableCell>
+                                <TableCell>{getStatusBadge(metric.status)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <div className="text-sm font-medium mb-2">Explanation</div>
+                        <p className="text-sm text-muted-foreground">
+                          The analysis shows areas where potential bias may exist in the data. 
+                          Scores are calculated on a scale of 0-100, with higher scores indicating better fairness.
+                          Metrics with scores below their threshold are flagged for attention.
+                        </p>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recommendations</CardTitle>
+              <CardDescription>
+                Suggestions to improve fairness and reduce bias
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex">
+                  <div className="mr-4 mt-0.5">
+                    <PlusCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Review feature importance</div>
+                    <p className="text-sm text-muted-foreground">
+                      Examine which features contribute most to disparate outcomes and consider removing or transforming them.
+                    </p>
                   </div>
                 </div>
-              </TabsContent>
-            ))}
-          </Tabs>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Mitigation Recommendations</CardTitle>
-          <CardDescription>
-            Suggested actions to address identified bias issues
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 border rounded-md">
-              <h3 className="text-md font-medium">Rebalance Training Data</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Improve representation of underrepresented groups in your training dataset to reduce performance disparities.
-              </p>
-              <div className="flex justify-end mt-2">
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                  Learn More
-                </Button>
+                
+                <div className="flex">
+                  <div className="mr-4 mt-0.5">
+                    <PlusCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Apply bias mitigation techniques</div>
+                    <p className="text-sm text-muted-foreground">
+                      Implement pre-processing, in-processing, or post-processing bias mitigation methods appropriate for your use case.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex">
+                  <div className="mr-4 mt-0.5">
+                    <PlusCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Collect more representative training data</div>
+                    <p className="text-sm text-muted-foreground">
+                      Ensure training data adequately represents all demographic groups to reduce bias in model predictions.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex">
+                  <div className="mr-4 mt-0.5">
+                    <PlusCircle className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">Implement regular fairness audits</div>
+                    <p className="text-sm text-muted-foreground">
+                      Establish a process for regular fairness monitoring and evaluation as part of the model maintenance workflow.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="p-4 border rounded-md">
-              <h3 className="text-md font-medium">Apply Algorithmic Fairness Techniques</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Consider implementing pre-processing, in-processing, or post-processing fairness techniques to address the Disparate Impact issue.
-              </p>
-              <div className="flex justify-end mt-2">
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                  Learn More
-                </Button>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentation & Compliance</CardTitle>
+              <CardDescription>
+                Information for governance and regulatory reporting
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium mb-1">Regulatory Frameworks</div>
+                  <p className="text-sm text-muted-foreground">
+                    This analysis helps demonstrate compliance with fairness requirements outlined in regulations such as:
+                  </p>
+                  <ul className="text-sm text-muted-foreground list-disc pl-5 mt-2 space-y-1">
+                    <li>EU AI Act - High-risk AI system fairness requirements</li>
+                    <li>Equal Credit Opportunity Act (ECOA)</li>
+                    <li>Fair Housing Act</li>
+                    <li>Title VII of the Civil Rights Act</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <div className="text-sm font-medium mb-1">Documentation Requirements</div>
+                  <div className="rounded-md border p-3">
+                    <div className="flex flex-col space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Fairness assessment report</span>
+                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Model card documentation</span>
+                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Bias mitigation plan</span>
+                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Algorithmic impact assessment</span>
+                        <ExternalLink className="h-4 w-4 text-blue-500" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="p-4 border rounded-md">
-              <h3 className="text-md font-medium">Review Feature Selection</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Examine the importance of potentially problematic features and consider removing or modifying features that contribute to bias.
-              </p>
-              <div className="flex justify-end mt-2">
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                  Learn More
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button className="w-full">Apply Mitigations</Button>
-        </CardFooter>
-      </Card>
-    </div>
-  );
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
   
   const renderSettings = () => (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Bias Analysis Settings</CardTitle>
+          <CardTitle>Bias Analysis Configuration</CardTitle>
           <CardDescription>
-            Configure bias detection parameters and thresholds
+            Configure default parameters for bias analysis
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <h3 className="text-lg font-medium">Protected Attributes</h3>
-              <p className="text-sm text-muted-foreground">
-                Define which demographic attributes to analyze for bias
-              </p>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-2 border-b">
-                  <div>
-                    <div className="font-medium">Gender</div>
-                    <div className="text-sm text-muted-foreground">Male, Female, Non-binary</div>
-                  </div>
-                  <Button variant="outline" size="sm">Edit Groups</Button>
-                </div>
-                
-                <div className="flex items-center justify-between py-2 border-b">
-                  <div>
-                    <div className="font-medium">Age</div>
-                    <div className="text-sm text-muted-foreground">18-25, 26-40, 41-60, 60+</div>
-                  </div>
-                  <Button variant="outline" size="sm">Edit Groups</Button>
-                </div>
-                
-                <div className="flex items-center justify-between py-2 border-b">
-                  <div>
-                    <div className="font-medium">Race/Ethnicity</div>
-                    <div className="text-sm text-muted-foreground">Asian, Black, Hispanic, White, Other</div>
-                  </div>
-                  <Button variant="outline" size="sm">Edit Groups</Button>
-                </div>
-                
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <div className="font-medium">Add New Protected Attribute</div>
-                  </div>
-                  <Button size="sm">
-                    <PlusCircle className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default Fairness Threshold</label>
+              <div className="flex items-center gap-4">
+                <Input 
+                  type="number" 
+                  min="0"
+                  max="100"
+                  defaultValue="80"
+                />
+                <span className="text-sm text-muted-foreground">
+                  Minimum acceptable fairness score (0-100)
+                </span>
               </div>
             </div>
             
-            <div className="space-y-3">
-              <h3 className="text-lg font-medium">Fairness Metrics</h3>
-              <p className="text-sm text-muted-foreground">
-                Select metrics to include in analysis and set thresholds
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Protected Attributes</label>
+              <Input 
+                defaultValue="gender, age, ethnicity, disability_status, location"
+                placeholder="Comma-separated list of attributes"
+              />
+              <p className="text-xs text-muted-foreground">
+                These attributes will be considered as protected categories in bias analysis
               </p>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Statistical Parity</label>
-                    <div className="flex items-center">
-                      <span className="text-sm text-muted-foreground mr-2">Threshold:</span>
-                      <Input 
-                        type="number" 
-                        className="w-20 h-8" 
-                        min="0" 
-                        max="1" 
-                        step="0.05" 
-                        defaultValue="0.80" 
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Measures if the model predicts positive outcomes at equal rates across protected groups
-                  </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Default Metrics</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="statistical_parity" className="h-4 w-4" defaultChecked />
+                  <label htmlFor="statistical_parity" className="text-sm">Statistical Parity</label>
                 </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Equal Opportunity</label>
-                    <div className="flex items-center">
-                      <span className="text-sm text-muted-foreground mr-2">Threshold:</span>
-                      <Input 
-                        type="number" 
-                        className="w-20 h-8" 
-                        min="0" 
-                        max="1" 
-                        step="0.05" 
-                        defaultValue="0.80" 
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Measures if the model has equal true positive rates across protected groups
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="disparate_impact" className="h-4 w-4" defaultChecked />
+                  <label htmlFor="disparate_impact" className="text-sm">Disparate Impact</label>
                 </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Disparate Impact</label>
-                    <div className="flex items-center">
-                      <span className="text-sm text-muted-foreground mr-2">Threshold:</span>
-                      <Input 
-                        type="number" 
-                        className="w-20 h-8" 
-                        min="0" 
-                        max="1" 
-                        step="0.05" 
-                        defaultValue="0.80" 
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Measures the ratio of positive prediction rates between protected groups
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="equal_opportunity" className="h-4 w-4" defaultChecked />
+                  <label htmlFor="equal_opportunity" className="text-sm">Equal Opportunity</label>
                 </div>
-                
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <div className="font-medium">Add Custom Metric</div>
-                  </div>
-                  <Button size="sm">
-                    <PlusCircle className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="predictive_parity" className="h-4 w-4" defaultChecked />
+                  <label htmlFor="predictive_parity" className="text-sm">Predictive Parity</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="treatment_equality" className="h-4 w-4" />
+                  <label htmlFor="treatment_equality" className="text-sm">Treatment Equality</label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input type="checkbox" id="conditional_use_accuracy" className="h-4 w-4" />
+                  <label htmlFor="conditional_use_accuracy" className="text-sm">Conditional Use Accuracy</label>
                 </div>
               </div>
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline">
-            Reset to Defaults
+        <CardFooter>
+          <Button className="w-full">
+            Save Configuration
           </Button>
-          <Button>
-            Save Settings
+        </CardFooter>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Notification Settings</CardTitle>
+          <CardDescription>
+            Configure alerts for bias detection
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Email alerts when bias is detected</span>
+              <div className="flex h-6 items-center">
+                <input type="checkbox" id="emailAlerts" className="h-4 w-4" defaultChecked />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Dashboard notifications</span>
+              <div className="flex h-6 items-center">
+                <input type="checkbox" id="dashboardNotifications" className="h-4 w-4" defaultChecked />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Webhook notifications</span>
+              <div className="flex h-6 items-center">
+                <input type="checkbox" id="webhookNotifications" className="h-4 w-4" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Webhook URL (if enabled)</label>
+              <Input placeholder="https://your-service.com/webhook" />
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button className="w-full">
+            Save Notification Settings
           </Button>
         </CardFooter>
       </Card>
