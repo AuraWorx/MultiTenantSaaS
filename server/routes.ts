@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { db } from "./db";
-import { eq, and, count, sum, asc, desc, SQL } from "drizzle-orm";
+import { eq, and, count, sum, asc, desc, SQL, sql } from "drizzle-orm";
 import axios from 'axios';
 import { 
   users, 
@@ -618,6 +618,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching organizations:", error);
       res.status(500).json({ message: "Failed to fetch organizations" });
+    }
+  });
+  
+  // Roles endpoints
+  app.get("/api/roles", isAuthenticated, async (req, res) => {
+    try {
+      // Check if user has admin role for full access
+      if (req.user?.role?.permissions?.includes('admin:all')) {
+        const rolesList = await db.select().from(roles);
+        res.json(rolesList);
+      } else {
+        // For non-admin users, only return non-admin roles
+        const rolesList = await db.select()
+          .from(roles)
+          .where(sql`NOT ${roles.permissions}::text[] && ARRAY['admin:all']::text[]`);
+        res.json(rolesList);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+      res.status(500).json({ message: "Failed to fetch roles" });
     }
   });
 

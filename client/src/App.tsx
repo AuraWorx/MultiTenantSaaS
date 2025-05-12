@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
+import { Footer } from "@/components/layout/footer";
 import AuthPage from "./pages/auth-page";
 import DashboardPage from "./pages/dashboard-page";
 import MapPage from "./pages/map-page";
@@ -34,8 +35,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Router />
+          <div className="flex flex-col min-h-screen">
+            <Toaster />
+            <div className="flex-grow">
+              <Router />
+            </div>
+            <Footer />
+          </div>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
