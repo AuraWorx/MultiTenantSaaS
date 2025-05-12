@@ -1,96 +1,144 @@
-# GitHub AI Usage Detection Methodology
+# GitHub AI Usage Detector Logic
+
+This document describes the logic and implementation of the GitHub AI Usage Detector feature in the AuraAI Governance Platform.
 
 ## Overview
 
-The AI Usage Finder scans GitHub repositories to detect AI-related libraries, frameworks, and code patterns that indicate AI/ML usage within an organization's codebase. The scanner uses a multi-method approach to provide high-confidence detection with detailed reporting.
+The GitHub AI Usage Detector is designed to scan repositories within a GitHub organization to identify AI/ML usage patterns. This helps organizations maintain an inventory of AI systems and ensure proper governance.
 
-## Detection Mechanisms
+## Detection Methods
 
-### 1. Library/Dependency Detection
+The detector uses multiple approaches to identify AI/ML usage:
 
-The scanner looks for common AI/ML libraries in package management files:
+### 1. Dependency Analysis
 
-#### Python
-- **Files Scanned**: `requirements.txt`, `setup.py`, `pyproject.toml`, `Pipfile`
-- **Key Libraries**: tensorflow, pytorch, scikit-learn, keras, transformers, huggingface, spacy, gensim, openai, langchain
+Scans package files for AI/ML libraries and frameworks, including:
 
-#### JavaScript/TypeScript
-- **Files Scanned**: `package.json`, `yarn.lock`, `package-lock.json`
-- **Key Libraries**: tensorflow.js, brain.js, ml5.js, natural, openai, langchain, transformers.js
+- **Python**: `requirements.txt`, `setup.py`, `pyproject.toml`
+  - Libraries: tensorflow, pytorch, scikit-learn, keras, transformers, huggingface, openai, langchain, etc.
 
-#### Java
-- **Files Scanned**: `pom.xml`, `build.gradle`
-- **Key Libraries**: deeplearning4j, weka, stanford-nlp, spark-mllib, djl (Deep Java Library)
+- **JavaScript/TypeScript**: `package.json`
+  - Libraries: tensorflow.js, ml5.js, brain.js, @huggingface/inference, openai, langchain, etc.
+
+- **Java/Kotlin**: `pom.xml`, `build.gradle`
+  - Libraries: deeplearning4j, weka, smile, djl, etc.
 
 ### 2. Model File Detection
 
-The scanner identifies model files commonly used in AI applications:
+Searches for common model file formats:
+- `.h5`, `.pb`, `.onnx`, `.pt`, `.pkl`, `.joblib`, `.safetensors`
 
-- `.h5`, `.pb`, `.pt`, `.pth`, `.onnx`, `.pkl`, `.joblib` - Common model serialization formats
-- `*_model.bin`, `*_tokenizer.json` - Transformer model files
-- `.tflite`, `.mlmodel` - Mobile AI model formats
+### 3. Code Pattern Analysis
 
-### 3. Code Pattern Recognition
+Examines code for AI/ML-related patterns:
+- Import statements for AI/ML libraries
+- API calls to AI services (OpenAI, AWS Bedrock, Google Vertex AI, etc.)
+- Model training and inference code patterns
+- Prompt engineering code patterns
 
-The scanner analyzes code files for AI-specific patterns:
+### 4. Configuration File Analysis
 
-- **Import statements**: `import tensorflow`, `import torch`, `from transformers import`, etc.
-- **API Client Initialization**: `openai.ChatCompletion.create`, `new LangChainJS.ChatOpenAI`
-- **Model Training**: `model.fit`, `model.train()`, `optimizer.step()`
-- **Inference Patterns**: `model.predict`, `model.generate`, `model.inference`
-
-### 4. Configuration Detection
-
-The scanner identifies configuration files that typically indicate AI usage:
-
-- `.env` files with API keys like `OPENAI_API_KEY`, `HUGGINGFACE_API_KEY`
-- Configuration files for ML frameworks
+Identifies AI-specific configuration files:
+- Model cards (model-card.md)
+- Hugging Face configuration files (config.json)
+- MLflow files (MLproject, conda.yaml)
+- AI deployment configuration files
 
 ## Confidence Scoring
 
-Each detection is assigned a confidence score based on:
+Each detection is assigned a confidence score (0.0-1.0) based on:
 
-1. **Number of signals**: Multiple signals increase confidence
-2. **Signal type**: Direct imports are higher confidence than potential matches
-3. **Library popularity**: Well-known libraries have higher confidence
-4. **Model files**: Presence of model artifacts is strong evidence
+1. Number of detections across different methods
+2. Specificity of the detections
+3. Repository usage patterns
 
-The final confidence score ranges from 0-100:
+## Implementation
 
-- **85-100**: High confidence (multiple direct signals)
-- **60-84**: Medium confidence (clear signals with some confirmation)
-- **30-59**: Low confidence (potential signals requiring review)
-- **0-29**: Very low confidence (possible false positives)
+The scanning process follows these steps:
 
-## Detection Types
+1. **Authentication**: Authenticates with GitHub API using the provided token
+2. **Repository Listing**: Fetches all repositories in the organization
+3. **Content Analysis**: For each repository:
+   - Fetches repository structure and content
+   - Applies detection methods
+   - Aggregates findings and calculates confidence scores
+4. **Result Storage**: Stores results in the database
+5. **Summary Generation**: Creates a summary of findings
 
-Each detection is classified by type:
+## API Integration
 
-1. **Library Detection**: AI libraries found in dependency files
-2. **Model File**: AI model artifacts detected
-3. **Code Pattern**: AI code patterns in source files
-4. **API Usage**: AI API calls identified
-5. **Mixed Signals**: Multiple detection types
+The GitHub scanning feature is integrated with the GitHub API:
 
-## Risk Assessment Integration
+```typescript
+// Example of how scanning is initiated
+async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSelect) {
+  // 1. Setup GitHub API client with authentication
+  const octokit = new Octokit({
+    auth: process.env.GITHUB_API_KEY,
+  });
 
-Repositories with high-confidence AI detection can be added to the risk register with a single click. This automatically creates an entry for further review and risk assessment.
+  try {
+    // 2. Fetch repositories for the organization
+    const { data: repos } = await octokit.rest.repos.listForOrg({
+      org: config.githubOrgName,
+      per_page: 100,
+    });
 
-## Private Repository Access
+    // 3. Process each repository
+    for (const repo of repos) {
+      // Analyze repository content
+      const aiUsage = await detectAIUsage(octokit, config.githubOrgName, repo.name);
+      
+      // Store results
+      // ...
+    }
+    
+    // 4. Create summary
+    // ...
+    
+  } catch (error) {
+    console.error("Error scanning GitHub repositories:", error);
+    // Handle error
+  }
+}
+```
 
-The scanner uses the provided GitHub API key to access private repositories. The key requires the following permissions:
+## Detection Result Example
 
-- `repo`: Full control of private repositories
-- `read:org`: Read organization data
+```json
+{
+  "repositoryName": "customer-sentiment-analyzer",
+  "repositoryUrl": "https://github.com/example-org/customer-sentiment-analyzer",
+  "hasAiUsage": true,
+  "aiLibraries": ["tensorflow", "transformers", "numpy", "pandas"],
+  "aiFrameworks": ["huggingface"],
+  "confidenceScore": 0.94,
+  "detectionType": "Model File, Dependencies"
+}
+```
 
-All API access is performed securely and API keys are stored encrypted in the database.
+## Risk Assessment
+
+Repositories identified as containing AI/ML usage can be automatically added to the risk register with:
+
+1. Risk title based on repository name
+2. Risk description including AI libraries and frameworks detected
+3. Initial severity based on confidence score
+4. Link to the repository for further investigation
+
+## Security Considerations
+
+- Repository scans are performed with minimal permissions required
+- API rate limiting is respected to avoid throttling
+- Private repository scanning requires appropriate GitHub API permissions
+- Contents are processed securely and not stored beyond what's needed for reporting
 
 ## Future Enhancements
 
-Planned improvements to the detection methodology:
+Planned improvements include:
 
-1. **Language Model Fingerprinting**: Detecting specific LLM usage patterns
-2. **Code Comment Analysis**: Identifying AI-generated code through comment patterns
-3. **Commit History Analysis**: Finding AI usage through commit messages and patterns
-4. **Fine-grained Report**: File-level breakdown of AI usage
-5. **Code Risk Scoring**: Evaluating risk based on how AI is used within the codebase
+1. Improved detection of embeddings and vector database usage
+2. Detection of frontier model integrations (e.g., GPT-4, Claude, Gemini)
+3. Identifying AI-related compliance artifacts (model cards, datasheets)
+4. Security vulnerability scanning in AI dependencies
+5. Integration with model registry systems
