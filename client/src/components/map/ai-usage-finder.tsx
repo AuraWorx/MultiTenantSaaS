@@ -94,8 +94,11 @@ export function AIUsageFinder() {
         ? `/api/github-scan/results?configId=${selectedConfigId}`
         : '/api/github-scan/results';
       const res = await apiRequest('GET', url);
-      return await res.json();
+      const data = await res.json();
+      console.log('Scan results received:', data);
+      return data;
     },
+    refetchInterval: 10000, // Refresh every 10 seconds
     enabled: !!user
   });
   
@@ -465,22 +468,20 @@ export function AIUsageFinder() {
                                   <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                     <div 
                                       className={`h-full ${
-                                        (result.confidence_score || 0) > 85 ? 'bg-red-500' : 
-                                        (result.confidence_score || 0) > 60 ? 'bg-orange-500' : 
-                                        (result.confidence_score || 0) > 30 ? 'bg-yellow-500' : 'bg-blue-400'
+                                        result.confidence_score > 85 ? 'bg-red-500' : 
+                                        result.confidence_score > 60 ? 'bg-orange-500' : 
+                                        result.confidence_score > 30 ? 'bg-yellow-500' : 'bg-blue-400'
                                       }`}
-                                      style={{ width: `${Math.min(100, (result.confidence_score || 70))}%` }}
+                                      style={{ width: `${Math.min(100, result.confidence_score || 70)}%` }}
                                     ></div>
                                   </div>
                                   <div className="ml-2 flex flex-col">
                                     <span className="text-sm font-medium">
                                       {result.confidence_score || 0}%
                                     </span>
-                                    {result.detection_type && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {result.detection_type}
-                                      </span>
-                                    )}
+                                    <span className="text-xs text-muted-foreground">
+                                      {result.detection_type || 'AI Detection'}
+                                    </span>
                                   </div>
                                 </div>
                               )}

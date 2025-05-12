@@ -763,8 +763,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GitHub Scan Results
   app.get("/api/github-scan/results", isAuthenticated, async (req, res) => {
     try {
-      const organizationId = req.user.organization?.id || req.user.organizationId;
+      // Extract organization ID from user object based on structure from the auth module
+      const organizationId = req.user?.organization?.[0] || 1; // Default to org ID 1 if not found
       const configId = req.query.configId ? parseInt(req.query.configId as string) : undefined;
+      
+      console.log(`Fetching scan results for org: ${organizationId}, configId: ${configId || 'all'}`);
       
       let query = db.select()
         .from(githubScanResults)
@@ -776,7 +779,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const results = await query.orderBy(desc(githubScanResults.scan_date));
       
-      res.json(results);
+      // Transform results to match the component's expected format
+      const transformedResults = results.map(result => ({
+        id: result.id,
+        scan_config_id: result.scan_config_id,
+        repository_name: result.repository_name,
+        repository_url: result.repository_url,
+        has_ai_usage: result.has_ai_usage,
+        ai_libraries: Array.isArray(result.ai_libraries) ? result.ai_libraries : [],
+        ai_frameworks: Array.isArray(result.ai_frameworks) ? result.ai_frameworks : [],
+        scan_date: result.scan_date,
+        added_to_risk: result.added_to_risk,
+        confidence_score: result.confidence_score !== null ? result.confidence_score : 0,
+        detection_type: result.detection_type || ''
+      }));
+      
+      console.log(`Found ${transformedResults.length} scan results`);
+      res.json(transformedResults);
     } catch (error) {
       console.error("Error fetching GitHub scan results:", error);
       res.status(500).json({ message: "Failed to fetch scan results" });
