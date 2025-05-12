@@ -43,14 +43,14 @@ export default function UserManagementPage() {
       <Sidebar />
       
       <div className="flex flex-col flex-1 w-0 overflow-hidden">
-        <TopNavbar title="User Management" />
+        <TopNavbar title="Platform Admin" />
         
         <main className="flex-1 relative overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
               <div className="sm:flex sm:items-center mb-6">
                 <div className="sm:flex-auto">
-                  <h2 className="text-xl font-semibold text-gray-900">Users & Organizations</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">Platform Administration</h2>
                   <p className="mt-2 text-sm text-gray-700">
                     Manage users, roles, and organizations in your Aura AI Govern instance.
                   </p>

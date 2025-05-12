@@ -625,14 +625,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/roles", isAuthenticated, async (req, res) => {
     try {
       // Check if user has admin role for full access
-      if (req.user?.role?.permissions?.includes('admin:all')) {
+      if (req.user?.role?.permissions?.includes('admin')) {
         const rolesList = await db.select().from(roles);
         res.json(rolesList);
       } else {
         // For non-admin users, only return non-admin roles
         const rolesList = await db.select()
           .from(roles)
-          .where(sql`NOT ${roles.permissions}::text[] && ARRAY['admin:all']::text[]`);
+          .where(sql`NOT ${roles.permissions}::text[] && ARRAY['admin']::text[]`);
         res.json(rolesList);
       }
     } catch (error) {
@@ -645,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organizations", isAuthenticated, async (req, res) => {
     try {
       // Check if user has admin role
-      if (!req.user.role.permissions.includes('admin:all')) {
+      if (!req.user.role.permissions.includes('admin')) {
         return res.status(403).json({ message: "Insufficient permissions to create organizations" });
       }
 
