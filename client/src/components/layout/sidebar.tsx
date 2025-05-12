@@ -38,45 +38,50 @@ export function Sidebar() {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(part => part[0])
+      .map(part => part.charAt(0))
       .join('')
-      .toUpperCase()
-      .substring(0, 2);
+      .toUpperCase();
   };
-
-  const menuItems = [
-    { path: '/', label: 'Dashboard', icon: <LayoutDashboard className="mr-3 h-5 w-5" /> },
-    { path: '/map', label: 'Map', icon: <Map className="mr-3 h-5 w-5" /> },
-    { path: '/measure', label: 'Measure', icon: <BarChart2 className="mr-3 h-5 w-5" /> },
-    { path: '/manage', label: 'Manage', icon: <Settings className="mr-3 h-5 w-5" /> },
-    { path: '/risk-register', label: 'Risk Register', icon: <AlertTriangle className="mr-3 h-5 w-5" /> },
+  
+  const navItems = [
+    { href: '/', icon: <LayoutDashboard className="w-5 h-5" />, text: 'Dashboard' },
+    { href: '/map', icon: <Map className="w-5 h-5" />, text: 'Map' },
+    { href: '/measure', icon: <BarChart2 className="w-5 h-5" />, text: 'Measure' },
+    { href: '/manage', icon: <Settings className="w-5 h-5" />, text: 'Manage' },
+    { href: '/risk-register', icon: <AlertTriangle className="w-5 h-5" />, text: 'Risk Register' },
   ];
-
-  // Only show admin-specific menu items for users with admin permissions
-  if (user?.role.permissions?.includes('admin') || user?.role.permissions?.includes('manage_users') || user?.role.permissions?.includes('manage_organizations')) {
-    menuItems.push({ 
-      path: '/users', 
-      label: 'Platform Admin', 
-      icon: <Shield className="mr-3 h-5 w-5" /> 
+  
+  // Only show the admin link if the user has admin permissions
+  const hasAdminPermission = user?.role?.permissions?.includes('admin');
+  if (hasAdminPermission) {
+    navItems.push({ 
+      href: '/admin', 
+      icon: <Shield className="w-5 h-5" />, 
+      text: 'Platform Admin' 
     });
   }
-
+  
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-0 left-0 z-40 w-full bg-white border-b border-gray-200 p-4">
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:bg-gray-100 focus:text-gray-600"
+      <button
+        className="p-2 text-gray-600 bg-white rounded-md lg:hidden"
+        onClick={() => setIsMobileMenuOpen(true)}
+      >
+        <svg 
+          className="w-6 h-6" 
+          xmlns="http://www.w3.org/2000/svg" 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor" 
+          aria-hidden="true"
         >
-          <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h7" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Sidebar for desktop and mobile */}
-      <div 
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      
+      {/* Overlay for mobile */}
+      <div
         className={`${
           isMobileMenuOpen ? 'fixed inset-0 z-40 block transition-opacity bg-black bg-opacity-25' : 'hidden'
         } lg:hidden`}
@@ -91,7 +96,7 @@ export function Sidebar() {
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <div className="bg-primary text-white font-bold rounded-lg p-2 flex items-center justify-center">
-                <span>AURA AI</span>
+                <span>A<span className="lowercase">ura</span> AI</span>
               </div>
             </div>
             <div className="ml-2 text-xl font-bold text-gray-900">Govern</div>
@@ -128,70 +133,53 @@ export function Sidebar() {
         </div>
         
         {/* Navigation */}
-        <nav className="px-3 mt-4 space-y-1">
-          {menuItems.map((item) => {
-            const isActive = location === item.path;
-            return (
-              <Link 
-                key={item.path} 
-                href={item.path}
-                className={`
-                  flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all duration-200
-                  ${isActive 
-                    ? 'bg-primary-100 text-primary border-l-3 border-primary' 
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}
-                `}
+        <nav className="px-2 py-4 space-y-1">
+          {navItems.map(item => (
+            <Link key={item.href} href={item.href}>
+              <a 
+                className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                  location === item.href
+                    ? 'bg-gray-100 text-primary'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
               >
                 {item.icon}
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+                <span className="truncate ml-3">{item.text}</span>
+              </a>
+            </Link>
+          ))}
         </nav>
         
-        {/* User Profile */}
-        <div className="absolute bottom-0 w-full border-t border-gray-200">
-          <div className="relative px-4 py-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center w-full cursor-pointer">
-                <Avatar className="w-9 h-9">
-                  <AvatarImage src={user?.avatarUrl || ''} />
+        {/* User menu */}
+        <div className="mt-auto border-t border-gray-200">
+          <div className="px-4 py-3">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
                   <AvatarFallback>
-                    {user ? getInitials(user.firstName && user.lastName 
-                      ? `${user.firstName} ${user.lastName}` 
-                      : user.username) 
-                    : 'U'}
+                    {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-700">
-                    {user?.firstName && user?.lastName 
-                      ? `${user.firstName} ${user.lastName}` 
-                      : user?.username}
-                  </p>
-                  <p className="text-xs font-medium text-gray-500">{user?.role.name}</p>
+              </div>
+              <div className="ml-3 min-w-0 flex-1">
+                <div className="text-sm font-medium text-gray-900 truncate">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName} ${user.lastName}`
+                    : user?.username || 'User'}
                 </div>
-              </DropdownMenuTrigger>
-              
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
+                <div className="text-xs text-gray-500 truncate">{user?.email || ''}</div>
+                <div className="text-xs text-gray-500 truncate">{user?.role?.name || ''}</div>
+              </div>
+              <div>
+                <button 
                   onClick={() => logoutMutation.mutate()}
-                  className="text-red-600"
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
                 >
-                  <LogOut className="mr-2 h-4 w-4" /> 
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
