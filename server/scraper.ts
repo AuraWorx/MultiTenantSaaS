@@ -1,68 +1,59 @@
+import { db } from "./db";
+import { frontierModels, frontierModelUpdates, insertFrontierModelUpdateSchema } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import axios from 'axios';
-import Parser from 'rss-parser';
 import * as cheerio from 'cheerio';
-import { db } from './db';
-import { frontierModels, frontierModelUpdates, insertFrontierModelUpdateSchema } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import Parser from 'rss-parser';
 
-const parser = new Parser();
-
-// Function to clean HTML and get first sentence
+// Helper function to clean HTML from summaries
 function cleanSummary(htmlText: string | null): string {
   if (!htmlText) return '';
   
   // Remove HTML tags
-  const text = htmlText.replace(/<[^<]+?>/g, '').trim();
+  const text = htmlText.replace(/<[^>]*>?/gm, '');
   
-  // Get first sentence
-  const parts = text.split('. ');
-  return parts[0] && parts[0].length > 0 ? `${parts[0]}.` : text;
+  // Trim and limit length
+  return text.trim().substring(0, 250) + (text.length > 250 ? '...' : '');
 }
 
-// Scrape updates for a specific model
+// Generic function to scrape model updates by searching for model-related content
 async function scrapeModelUpdates(model: string, category: 'security' | 'feature', daysAgo: number = 7, maxResults: number = 5): Promise<any[]> {
-  console.log(`[DEBUG] Processing model '${model}' for category '${category}'...`);
-  
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
-  
-  const phrase = category === 'security' ? 'security incident' : 'feature update';
-  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(`${model} ${phrase}`)}`;
-  
-  console.log(`[DEBUG] Fetching RSS: ${rssUrl}`);
+  const today = new Date();
+  const results = [];
   
   try {
-    const feed = await parser.parseURL(rssUrl);
-    console.log(`[DEBUG] Entries fetched: ${feed.items.length}`);
+    // We could use Google Search API here for more robust results
+    // This is a simplified approach using Google News
+    const searchTerm = category === 'security' ? 
+      `${model} AI security vulnerability privacy` : 
+      `${model} AI new feature capability release`;
     
-    const results: any[] = [];
-    let count = 0;
+    const searchUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchTerm)}&hl=en-US&gl=US&ceid=US:en`;
     
-    for (const item of feed.items) {
-      if (!item.pubDate) continue;
+    // Parse RSS feed
+    const parser = new parseRSS();
+    const feed = await parser.parseURL(searchUrl);
+    
+    // Extract relevant articles
+    for (const item of feed.items.slice(0, maxResults)) {
+      const pubDate = new Date(item.pubDate || today.toISOString());
       
-      const publishedDate = new Date(item.pubDate);
-      if (publishedDate < cutoffDate) continue;
-      
-      const summary = cleanSummary(item.contentSnippet || item.content || '');
-      
-      results.push({
-        model,
-        update_type: category,
-        source_url: item.link || '',
-        description: summary,
-        title: item.title || 'Update',
-        update_date: publishedDate.toISOString(),
-      });
-      
-      count++;
-      if (count >= maxResults) break;
+      // Check if article is within our timeframe
+      const diffDays = Math.floor((today.getTime() - pubDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= daysAgo) {
+        results.push({
+          title: item.title || `${model} ${category} update`,
+          description: cleanSummary(item.contentSnippet || item.content),
+          source_url: item.link || null,
+          update_type: category,
+          update_date: pubDate.toISOString()
+        });
+      }
     }
     
-    console.log(`[DEBUG] Added ${count} items for ${model}/${category}`);
     return results;
   } catch (error) {
-    console.error(`Error scraping updates for ${model}/${category}:`, error);
+    console.error(`Error scraping ${category} updates for ${model}:`, error);
     return [];
   }
 }
@@ -98,7 +89,7 @@ export async function scrapeProviderUpdates(providerName: string, modelName: str
   }));
 }
 
-// Scrape OpenAI updates from their blog
+// Scrape OpenAI updates
 async function scrapeOpenAIUpdates(modelName: string, modelId: number): Promise<any[]> {
   try {
     const response = await axios.get('https://openai.com/blog');
@@ -107,35 +98,65 @@ async function scrapeOpenAIUpdates(modelName: string, modelId: number): Promise<
     
     const today = new Date();
     
-    // Find blog articles
-    $('article').each((i, el) => {
+    // Find recent blog posts
+    $('article, .mb-8').each((i, el) => {
       if (updates.length >= 5) return; // Limit to 5 updates
       
-      const title = $(el).find('h3').text().trim();
-      const link = 'https://openai.com' + $(el).find('a').attr('href');
-      const description = $(el).find('p').text().trim();
+      const title = $(el).find('h3, h2').text().trim();
+      const summary = $(el).find('p, .text-md').first().text().trim();
+      const link = $(el).find('a').attr('href');
+      const fullLink = link ? (link.startsWith('http') ? link : `https://openai.com${link}`) : null;
       
       // Check if the article mentions the model
-      if (title.toLowerCase().includes(modelName.toLowerCase()) || 
-          description.toLowerCase().includes(modelName.toLowerCase())) {
-        
+      const modelPattern = new RegExp(modelName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+      const contentText = `${title} ${summary}`;
+      
+      if (contentText.match(modelPattern) || modelName.includes('GPT') && contentText.match(/GPT/i)) {
         // Determine type based on content
         const isSecurityRelated = 
           title.toLowerCase().includes('security') || 
-          description.toLowerCase().includes('security') ||
+          summary.toLowerCase().includes('security') ||
           title.toLowerCase().includes('safety') || 
-          description.toLowerCase().includes('safety');
+          summary.toLowerCase().includes('safety') ||
+          title.toLowerCase().includes('privacy') || 
+          summary.toLowerCase().includes('privacy');
         
         updates.push({
           frontier_model_id: modelId,
           title,
-          description,
-          source_url: link,
+          description: summary || 'New update for ' + modelName,
+          source_url: fullLink,
           update_type: isSecurityRelated ? 'security' : 'feature',
           update_date: today.toISOString(),
         });
       }
     });
+    
+    // If no model-specific updates found, try generic OpenAI updates
+    if (updates.length === 0) {
+      $('article, .mb-8').slice(0, 3).each((i, el) => {
+        const title = $(el).find('h3, h2').text().trim();
+        const summary = $(el).find('p, .text-md').first().text().trim();
+        const link = $(el).find('a').attr('href');
+        const fullLink = link ? (link.startsWith('http') ? link : `https://openai.com${link}`) : null;
+        
+        // Determine type based on content
+        const isSecurityRelated = 
+          title.toLowerCase().includes('security') || 
+          summary.toLowerCase().includes('security') ||
+          title.toLowerCase().includes('safety') || 
+          summary.toLowerCase().includes('safety');
+        
+        updates.push({
+          frontier_model_id: modelId,
+          title: `${title} (May affect ${modelName})`,
+          description: summary || 'New update from OpenAI',
+          source_url: fullLink,
+          update_type: isSecurityRelated ? 'security' : 'feature',
+          update_date: today.toISOString(),
+        });
+      });
+    }
     
     return updates;
   } catch (error) {
@@ -147,41 +168,73 @@ async function scrapeOpenAIUpdates(modelName: string, modelId: number): Promise<
 // Scrape Anthropic updates
 async function scrapeAnthropicUpdates(modelName: string, modelId: number): Promise<any[]> {
   try {
-    const response = await axios.get('https://www.anthropic.com/news');
+    const response = await axios.get('https://www.anthropic.com/blog');
     const $ = cheerio.load(response.data);
     const updates: any[] = [];
     
     const today = new Date();
     
-    // Find news items
-    $('.news-list-item').each((i, el) => {
+    // Find blog articles
+    $('.blog-posts article').each((i, el) => {
       if (updates.length >= 5) return; // Limit to 5 updates
       
-      const title = $(el).find('h3').text().trim();
-      const link = 'https://www.anthropic.com' + $(el).find('a').attr('href');
-      const description = $(el).find('p').text().trim();
+      const title = $(el).find('h2, h3').text().trim();
+      const link = $(el).find('a').attr('href');
+      const summary = $(el).find('.mt-2, p').first().text().trim();
+      const fullLink = link ? (link.startsWith('http') ? link : `https://www.anthropic.com${link}`) : null;
       
-      // Check if the item mentions the model
-      if (title.toLowerCase().includes(modelName.toLowerCase()) || 
-          description.toLowerCase().includes(modelName.toLowerCase())) {
+      // Check if the article mentions the model
+      const modelPattern = new RegExp(modelName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+      const contentText = `${title} ${summary}`;
+      
+      if (contentText.match(modelPattern) || 
+          (modelName.includes('Claude') && contentText.match(/Claude/i))) {
         
         // Determine type based on content
         const isSecurityRelated = 
           title.toLowerCase().includes('security') || 
-          description.toLowerCase().includes('security') ||
+          summary.toLowerCase().includes('security') ||
           title.toLowerCase().includes('safety') || 
-          description.toLowerCase().includes('safety');
+          summary.toLowerCase().includes('safety') ||
+          title.toLowerCase().includes('privacy') || 
+          summary.toLowerCase().includes('privacy');
         
         updates.push({
           frontier_model_id: modelId,
           title,
-          description,
-          source_url: link,
+          description: summary || 'New update for ' + modelName,
+          source_url: fullLink,
           update_type: isSecurityRelated ? 'security' : 'feature',
           update_date: today.toISOString(),
         });
       }
     });
+    
+    // If no model-specific updates found, try generic company updates
+    if (updates.length === 0) {
+      $('.blog-posts article').slice(0, 3).each((i, el) => {
+        const title = $(el).find('h2, h3').text().trim();
+        const link = $(el).find('a').attr('href');
+        const summary = $(el).find('.mt-2, p').first().text().trim();
+        const fullLink = link ? (link.startsWith('http') ? link : `https://www.anthropic.com${link}`) : null;
+        
+        // Determine type based on content
+        const isSecurityRelated = 
+          title.toLowerCase().includes('security') || 
+          summary.toLowerCase().includes('security') ||
+          title.toLowerCase().includes('safety') || 
+          summary.toLowerCase().includes('safety');
+        
+        updates.push({
+          frontier_model_id: modelId,
+          title: `${title} (May affect ${modelName})`,
+          description: summary || 'New update from Anthropic',
+          source_url: fullLink,
+          update_type: isSecurityRelated ? 'security' : 'feature',
+          update_date: today.toISOString(),
+        });
+      });
+    }
     
     return updates;
   } catch (error) {
@@ -200,34 +253,64 @@ async function scrapeGoogleUpdates(modelName: string, modelId: number): Promise<
     const today = new Date();
     
     // Find blog articles
-    $('.post-item').each((i, el) => {
+    $('article.blog-c-entry').each((i, el) => {
       if (updates.length >= 5) return; // Limit to 5 updates
       
       const title = $(el).find('h3').text().trim();
       const link = $(el).find('a').attr('href');
-      const description = $(el).find('.post-excerpt').text().trim();
+      const summary = $(el).find('.blog-c-entry__snippet').text().trim();
       
       // Check if the article mentions the model
-      if (title.toLowerCase().includes(modelName.toLowerCase()) || 
-          description.toLowerCase().includes(modelName.toLowerCase())) {
+      const modelPattern = new RegExp(modelName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+      const contentText = `${title} ${summary}`;
+      
+      if (contentText.match(modelPattern) || 
+          (modelName.includes('Gemini') && contentText.match(/Gemini/i))) {
         
         // Determine type based on content
         const isSecurityRelated = 
           title.toLowerCase().includes('security') || 
-          description.toLowerCase().includes('security') ||
+          summary.toLowerCase().includes('security') ||
           title.toLowerCase().includes('safety') || 
-          description.toLowerCase().includes('safety');
+          summary.toLowerCase().includes('safety') ||
+          title.toLowerCase().includes('privacy') || 
+          summary.toLowerCase().includes('privacy');
         
         updates.push({
           frontier_model_id: modelId,
           title,
-          description,
+          description: summary || 'New update for ' + modelName,
           source_url: link,
           update_type: isSecurityRelated ? 'security' : 'feature',
           update_date: today.toISOString(),
         });
       }
     });
+    
+    // If no model-specific updates found, try generic Google AI updates
+    if (updates.length === 0) {
+      $('article.blog-c-entry').slice(0, 3).each((i, el) => {
+        const title = $(el).find('h3').text().trim();
+        const link = $(el).find('a').attr('href');
+        const summary = $(el).find('.blog-c-entry__snippet').text().trim();
+        
+        // Determine type based on content
+        const isSecurityRelated = 
+          title.toLowerCase().includes('security') || 
+          summary.toLowerCase().includes('security') ||
+          title.toLowerCase().includes('safety') || 
+          summary.toLowerCase().includes('safety');
+        
+        updates.push({
+          frontier_model_id: modelId,
+          title: `${title} (May affect ${modelName})`,
+          description: summary || 'New update from Google AI',
+          source_url: link,
+          update_type: isSecurityRelated ? 'security' : 'feature',
+          update_date: today.toISOString(),
+        });
+      });
+    }
     
     return updates;
   } catch (error) {
