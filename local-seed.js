@@ -283,34 +283,36 @@ async function seed() {
 
     // Create GitHub Scan Configs
     console.log('Creating GitHub scan configs...');
+    const apiKey = process.env.GITHUB_API_KEY || 'dummy-api-key';
+    
     const auraWorxConfigRes = await client.query(`
       INSERT INTO github_scan_configs (
-        github_org_name, organization_id, created_by_id, 
+        github_org_name, organization_id, api_key, 
         last_scan_at, status
       ) VALUES (
         'AuraWorx', $1, $2, $3, 'completed'
       ) RETURNING *
-    `, [adminOrg.id, adminUser.id, new Date()]);
+    `, [adminOrg.id, apiKey, new Date()]);
     const auraWorxConfig = auraWorxConfigRes.rows[0];
 
     const techCorpConfigRes = await client.query(`
       INSERT INTO github_scan_configs (
-        github_org_name, organization_id, created_by_id, 
+        github_org_name, organization_id, api_key, 
         last_scan_at, status
       ) VALUES (
         'TechCorp', $1, $2, $3, 'completed'
       ) RETURNING *
-    `, [techOrg.id, techAdmin.id, new Date()]);
+    `, [techOrg.id, apiKey, new Date()]);
     const techCorpConfig = techCorpConfigRes.rows[0];
 
     const financeCorpConfigRes = await client.query(`
       INSERT INTO github_scan_configs (
-        github_org_name, organization_id, created_by_id, 
+        github_org_name, organization_id, api_key, 
         status
       ) VALUES (
         'FinanceCorp', $1, $2, 'pending'
       ) RETURNING *
-    `, [financeOrg.id, adminUser.id]);
+    `, [financeOrg.id, apiKey]);
     const financeCorpConfig = financeCorpConfigRes.rows[0];
 
     // Create GitHub Scan Results
@@ -319,49 +321,49 @@ async function seed() {
       INSERT INTO github_scan_results (
         scan_config_id, repository_name, repository_url, 
         has_ai_usage, ai_libraries, ai_frameworks, 
-        scan_date, added_to_risk, confidence_score, detection_type
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
       ) VALUES (
         $1, 'llm-anthropic', 'https://github.com/AuraWorx/llm-anthropic',
         true, ARRAY['anthropic'], ARRAY['anthropic>=0.48.0'],
-        $2, false, 100, 'Dependency File'
+        $2, false, 100, 'Dependency File', $3
       )
-    `, [auraWorxConfig.id, new Date()]);
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
 
     await client.query(`
       INSERT INTO github_scan_results (
         scan_config_id, repository_name, repository_url, 
         has_ai_usage, ai_libraries, ai_frameworks, 
-        scan_date, added_to_risk, confidence_score, detection_type
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
       ) VALUES (
         $1, 'MultiTenantSaaS', 'https://github.com/AuraWorx/MultiTenantSaaS',
         true, ARRAY['openai'], ARRAY['openai@^4.98.0'],
-        $2, true, 100, 'Dependency File'
+        $2, true, 100, 'Dependency File', $3
       )
-    `, [auraWorxConfig.id, new Date()]);
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
 
     await client.query(`
       INSERT INTO github_scan_results (
         scan_config_id, repository_name, repository_url, 
         has_ai_usage, ai_libraries, ai_frameworks, 
-        scan_date, added_to_risk, confidence_score, detection_type
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
       ) VALUES (
         $1, 'SmartGlasses', 'https://github.com/AuraWorx/SmartGlasses',
         false, ARRAY[]::text[], ARRAY[]::text[],
-        $2, false, 0, ''
+        $2, false, 0, '', $3
       )
-    `, [auraWorxConfig.id, new Date()]);
+    `, [auraWorxConfig.id, new Date(), adminOrg.id]);
 
     await client.query(`
       INSERT INTO github_scan_results (
         scan_config_id, repository_name, repository_url, 
         has_ai_usage, ai_libraries, ai_frameworks, 
-        scan_date, added_to_risk, confidence_score, detection_type
+        scan_date, added_to_risk, confidence_score, detection_type, organization_id
       ) VALUES (
         $1, 'ai-assistant', 'https://github.com/TechCorp/ai-assistant',
         true, ARRAY['langchain', 'openai'], ARRAY['langchain@^0.0.200', 'openai@^4.2.0'],
-        $2, true, 100, 'Dependency File'
+        $2, true, 100, 'Dependency File', $3
       )
-    `, [techCorpConfig.id, new Date()]);
+    `, [techCorpConfig.id, new Date(), techOrg.id]);
 
     // Create GitHub Scan Summaries
     console.log('Creating GitHub scan summaries...');
@@ -388,7 +390,7 @@ async function seed() {
     const hiringBiasScanRes = await client.query(`
       INSERT INTO bias_analysis_scans (
         name, description, status, data_source,
-        ai_system_id, organization_id, created_by_id
+        ai_system_id, organization_id, created_by
       ) VALUES (
         'Hiring Data Bias Analysis', 'Analysis of potential bias in HR hiring data',
         'completed', 'CSV Upload', $1, $2, $3
@@ -399,7 +401,7 @@ async function seed() {
     const lendingBiasScanRes = await client.query(`
       INSERT INTO bias_analysis_scans (
         name, description, status, data_source,
-        ai_system_id, organization_id, created_by_id
+        ai_system_id, organization_id, created_by
       ) VALUES (
         'Lending Algorithm Bias Check', 'Analysis of potential bias in lending decisions',
         'completed', 'API Webhook', $1, $2, $3
@@ -411,24 +413,22 @@ async function seed() {
     console.log('Creating bias analysis results...');
     await client.query(`
       INSERT INTO bias_analysis_results (
-        scan_id, bias_type, bias_score, description,
-        attribute_contributions, recommended_actions, organization_id
+        scan_id, metric_name, metric_description, score, threshold,
+        status, demographic_group, additional_data, organization_id
       ) VALUES (
-        $1, 'gender', 0.78, 'Significant gender bias detected in hiring data',
-        '{"education": 0.35, "previous_roles": 0.28, "age": 0.15}',
-        'Review and adjust model weights for education and previous roles attributes',
+        $1, 'gender', 'Gender bias analysis', 78, 50,
+        'fail', 'female', '{"education": 0.35, "previous_roles": 0.28, "age": 0.15}',
         $2
       )
     `, [hiringBiasScan.id, adminOrg.id]);
 
     await client.query(`
       INSERT INTO bias_analysis_results (
-        scan_id, bias_type, bias_score, description,
-        attribute_contributions, recommended_actions, organization_id
+        scan_id, metric_name, metric_description, score, threshold,
+        status, demographic_group, additional_data, organization_id
       ) VALUES (
-        $1, 'racial', 0.42, 'Moderate racial bias detected in lending decisions',
-        '{"zip_code": 0.45, "income": 0.22, "credit_history_length": 0.18}',
-        'Remove zip code as a factor in lending decisions',
+        $1, 'racial', 'Racial bias analysis', 42, 50,
+        'pass', 'minority', '{"zip_code": 0.45, "income": 0.22, "credit_history_length": 0.18}',
         $2
       )
     `, [lendingBiasScan.id, adminOrg.id]);
