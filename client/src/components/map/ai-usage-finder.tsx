@@ -460,6 +460,24 @@ export function AIUsageFinder() {
                               </div>
                             </TableCell>
                             <TableCell>
+                              {result.has_ai_usage && (
+                                <div className="flex items-center">
+                                  <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${
+                                        (result.confidence_score || 0) > 0.7 ? 'bg-red-500' : 
+                                        (result.confidence_score || 0) > 0.4 ? 'bg-yellow-500' : 'bg-blue-500'
+                                      }`}
+                                      style={{ width: `${((result.confidence_score || 0.5) * 100)}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="ml-2 text-xs">
+                                    {Math.round(((result.confidence_score || 0.5) * 100))}%
+                                  </span>
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               {new Date(result.scan_date).toLocaleDateString()}
                             </TableCell>
                             <TableCell>

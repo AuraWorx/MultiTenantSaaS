@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -228,6 +228,8 @@ export const githubScanResults = pgTable("github_scan_results", {
   has_ai_usage: boolean("has_ai_usage").default(false),
   ai_libraries: text("ai_libraries").array(),
   ai_frameworks: text("ai_frameworks").array(),
+  confidence_score: decimal("confidence_score", { precision: 4, scale: 2 }),
+  detection_type: text("detection_type"),
   scan_date: timestamp("scan_date").defaultNow(),
   added_to_risk: boolean("added_to_risk").default(false),
 });
