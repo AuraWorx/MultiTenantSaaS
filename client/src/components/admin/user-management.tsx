@@ -33,7 +33,7 @@ export function UserManagement() {
   });
 
   // Check if user has admin permissions
-  const isAdmin = user?.role?.permissions?.includes("admin:all");
+  const isAdmin = user?.role?.permissions?.includes("admin");
 
   // Fetch users
   const { data: users, isLoading } = useQuery<UserWithDetails[]>({

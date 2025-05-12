@@ -22,7 +22,7 @@ export function OrganizationManagement() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Check if user has admin permissions
-  const isAdmin = user?.role?.permissions?.includes("admin:all");
+  const isAdmin = user?.role?.permissions?.includes("admin");
 
   // Fetch organizations
   const { data: organizations, isLoading } = useQuery<Organization[]>({

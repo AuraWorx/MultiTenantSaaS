@@ -12,7 +12,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("organizations");
   
   // Check if user has admin permissions
-  const isAdmin = user?.role?.permissions?.includes("admin:all");
+  const isAdmin = user?.role?.permissions?.includes("admin");
 
   if (!isAdmin) {
     return (
