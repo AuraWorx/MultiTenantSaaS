@@ -2034,6 +2034,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // =================== Frontier Model Updates API Routes ===================
   
+  // Get latest updates across all models for the dashboard widget
+  app.get("/api/frontier-model-updates/latest", isAuthenticated, async (req, res) => {
+    try {
+      // Simply get the latest 10 updates of any type, sorted by date
+      const updates = await db.select({
+        id: frontierModelUpdates.id,
+        title: frontierModelUpdates.title,
+        description: frontierModelUpdates.description,
+        update_type: frontierModelUpdates.update_type,
+        source_url: frontierModelUpdates.source_url,
+        update_date: frontierModelUpdates.update_date,
+        frontier_model_id: frontierModelUpdates.frontier_model_id,
+        model: {
+          id: frontierModels.id,
+          name: frontierModels.name,
+          provider: frontierModels.provider
+        }
+      })
+      .from(frontierModelUpdates)
+      .innerJoin(frontierModels, eq(frontierModelUpdates.frontier_model_id, frontierModels.id))
+      .orderBy(desc(frontierModelUpdates.update_date))
+      .limit(10);
+      
+      res.json(updates);
+    } catch (error) {
+      console.error("Error fetching latest frontier model updates:", error);
+      res.status(500).json({ message: "Failed to fetch latest frontier model updates" });
+    }
+  });
+
   // Get all updates for a specific frontier model
   app.get("/api/frontier-model-updates/:modelId", isAuthenticated, async (req, res) => {
     try {
@@ -2067,36 +2097,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get latest updates across all models for the dashboard widget
-  app.get("/api/frontier-model-updates/latest", isAuthenticated, async (req, res) => {
-    try {
-      // Simply get the latest 10 updates of any type, sorted by date
-      const updates = await db.select({
-        id: frontierModelUpdates.id,
-        title: frontierModelUpdates.title,
-        description: frontierModelUpdates.description,
-        update_type: frontierModelUpdates.update_type,
-        source_url: frontierModelUpdates.source_url,
-        update_date: frontierModelUpdates.update_date,
-        frontier_model_id: frontierModelUpdates.frontier_model_id,
-        model: {
-          id: frontierModels.id,
-          name: frontierModels.name,
-          provider: frontierModels.provider
-        }
-      })
-      .from(frontierModelUpdates)
-      .innerJoin(frontierModels, eq(frontierModelUpdates.frontier_model_id, frontierModels.id))
-      .orderBy(desc(frontierModelUpdates.update_date))
-      .limit(10);
-      
-      res.json(updates);
-    } catch (error) {
-      console.error("Error fetching latest frontier model updates:", error);
-      res.status(500).json({ message: "Failed to fetch latest frontier model updates" });
-    }
-  });
-
   // This endpoint would be called by a scheduled job or UI button to scrape and update frontier model information
   app.post("/api/frontier-model-updates/scrape/:modelId", isAuthenticated, async (req, res) => {
     try {
