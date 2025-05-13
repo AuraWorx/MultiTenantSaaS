@@ -258,7 +258,7 @@ export function FrontierModelAlerts() {
 
   const filterUpdatesByType = (type: 'security' | 'feature') => {
     if (!updates) return [];
-    return updates.filter(update => update.update_type === type);
+    return updates.filter(update => update.updateType === type);
   };
 
   const getSecurityUpdatesCount = (modelId: number) => {
@@ -603,6 +603,19 @@ export function FrontierModelAlerts() {
             <div className="grid gap-4 py-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Model Updates</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleScrapeUpdates}
+                  disabled={scrapeUpdatesMutation.isPending}
+                >
+                  {scrapeUpdatesMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">Refresh Updates</span>
+                </Button>
               </div>
 
               <Tabs defaultValue="security" className="w-full">
