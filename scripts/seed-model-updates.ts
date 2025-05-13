@@ -52,8 +52,8 @@ async function main() {
         provider: "Anthropic",
         description: "Claude 3.5 Sonnet from Anthropic - a powerful frontier model with enhanced reasoning capabilities.",
         release_date: new Date("2025-03-01"),
-        created_by_id: 1, // admin user
-        organization_id: 1, // admin organization
+        created_by_id: 9, // admin user
+        organization_id: 7, // admin organization
       }).returning();
       
       model = newModel;
