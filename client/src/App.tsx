@@ -104,6 +104,11 @@ function Router() {
           <AdminPage />
         </AppLayout>
       )} />
+      <ProtectedRoute path="/frontier-models" component={() => (
+        <AppLayout>
+          <FrontierModelsPage />
+        </AppLayout>
+      )} />
       <Route component={NotFound} />
     </Switch>
   );

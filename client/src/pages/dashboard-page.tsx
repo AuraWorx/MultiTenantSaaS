@@ -3,6 +3,7 @@ import { TopNavbar } from '@/components/layout/top-navbar';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DashboardCharts } from '@/components/dashboard/charts';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
+import { FrontierModelsWidget } from '@/components/dashboard/frontier-models-widget';
 import { DashboardStats, ActivityItem } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -28,7 +29,12 @@ export default function DashboardPage() {
             ) : dashboardData ? (
               <>
                 <StatsCards stats={dashboardData.stats} />
-                <DashboardCharts />
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-8">
+                  <DashboardCharts />
+                  <FrontierModelsWidget />
+                </div>
+                
                 <ActivityFeed activities={dashboardData.activities} />
               </>
             ) : (
