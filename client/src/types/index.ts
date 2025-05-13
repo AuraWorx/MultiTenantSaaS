@@ -43,11 +43,11 @@ export interface FrontierModel {
   created_at: string;
   created_by_id: number;
   organization_id: number;
-  createdBy?: {
+  created_by?: {
     id: number;
     username: string;
-    first_name: string | null;
-    last_name: string | null;
+    firstName: string | null;
+    lastName: string | null;
   };
   organization?: {
     id: number;
@@ -62,6 +62,7 @@ export interface FrontierModelAlert {
   organization_id: number;
   user_id: number;
   alert_type: 'security' | 'feature';
+  alert_frequency: 'daily' | 'weekly' | 'monthly';
   created_at: string;
   updated_at: string;
   active: boolean;
@@ -69,8 +70,8 @@ export interface FrontierModelAlert {
   user?: {
     id: number;
     username: string;
-    first_name: string | null;
-    last_name: string | null;
+    firstName: string | null;
+    lastName: string | null;
   };
 }
 
