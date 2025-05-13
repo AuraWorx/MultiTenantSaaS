@@ -422,6 +422,7 @@ export const frontierModelUpdates = pgTable("frontier_model_updates", {
   update_type: text("update_type").notNull(), // 'security', 'feature'
   source_url: text("source_url"),
   update_date: timestamp("update_date").notNull(),
+  published_date: timestamp("published_date"),
   created_at: timestamp("created_at").defaultNow(),
 });
 
