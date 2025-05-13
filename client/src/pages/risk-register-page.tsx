@@ -1021,6 +1021,30 @@ export default function RiskRegisterPage() {
   const { data: riskItems, isLoading } = useQuery<EnrichedRiskItem[]>({
     queryKey: ["/api/risk-items"],
   });
+  
+  // Mutation for deleting risk items
+  const deleteRiskMutation = useMutation({
+    mutationFn: async (riskId: number) => {
+      const res = await apiRequest("DELETE", `/api/risk-items/${riskId}`, {});
+      return res.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      toast({
+        title: "Risk deleted",
+        description: "The risk item and its mitigations have been deleted successfully.",
+      });
+      setIsDeleteConfirmOpen(false);
+      setSelectedRiskId(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete risk: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
 
   // Filter the data based on selected filters
   const filteredItems = riskItems
@@ -1297,11 +1321,9 @@ export default function RiskRegisterPage() {
                               className="text-red-600"
                               onClick={() => {
                                 setSelectedRiskId(item.id);
-                                setIsDeleteConfirmOpen(true);
-                                toast({
-                                  title: "Action not implemented",
-                                  description: "Delete functionality coming soon",
-                                });
+                                if (confirm("Are you sure you want to delete this risk item? This will also delete all associated mitigations.")) {
+                                  deleteRiskMutation.mutate(item.id);
+                                }
                               }}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -1318,6 +1340,40 @@ export default function RiskRegisterPage() {
           )}
         </CardContent>
       </Card>
+      
+      {/* Edit Risk Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Risk</DialogTitle>
+            <DialogDescription>
+              Update risk details and mitigation strategies
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRiskId && (
+            <EditRiskForm 
+              riskId={selectedRiskId} 
+              onCancel={() => {
+                setIsEditDialogOpen(false);
+                setSelectedRiskId(null);
+              }} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* New Risk Dialog */}
+      <Dialog open={isNewRiskDialogOpen} onOpenChange={setIsNewRiskDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Risk</DialogTitle>
+            <DialogDescription>
+              Create a new risk item and optionally add mitigation details
+            </DialogDescription>
+          </DialogHeader>
+          <NewRiskForm onCancel={() => setIsNewRiskDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
