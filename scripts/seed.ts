@@ -248,26 +248,26 @@ async function seed() {
     // Create GitHub Scan Configs
     console.log('Creating GitHub scan configs...');
     const [auraWorxConfig] = await db.insert(githubScanConfigs).values({
-      githubOrgName: 'AuraWorx',
-      organizationId: adminOrg.id,
-      createdById: adminUser.id,
-      lastScanAt: new Date(),
+      github_org_name: 'AuraWorx',
+      organization_id: adminOrg.id,
+      created_by_id: adminUser.id,
+      last_scan_at: new Date(),
       status: 'completed',
     }).returning();
 
     const [techCorpConfig] = await db.insert(githubScanConfigs).values({
-      githubOrgName: 'TechCorp',
-      organizationId: techOrg.id,
-      createdById: techAdmin.id,
-      lastScanAt: new Date(),
+      github_org_name: 'TechCorp',
+      organization_id: techOrg.id,
+      created_by_id: techAdmin.id,
+      last_scan_at: new Date(),
       status: 'completed',
     }).returning();
 
     const [financeCorpConfig] = await db.insert(githubScanConfigs).values({
-      githubOrgName: 'FinanceCorp',
-      organizationId: financeOrg.id,
-      createdById: adminUser.id,
-      lastScanAt: null,
+      github_org_name: 'FinanceCorp',
+      organization_id: financeOrg.id,
+      created_by_id: adminUser.id,
+      last_scan_at: null,
       status: 'pending',
     }).returning();
 
@@ -401,45 +401,33 @@ async function seed() {
     const [gpt4] = await db.insert(frontierModels).values({
       name: 'GPT-4o',
       provider: 'OpenAI',
-      releaseDate: new Date('2024-05-13'),
+      release_date: new Date('2024-05-13'),
       description: 'The newest multimodal model from OpenAI with advanced reasoning and vision capabilities.',
-      category: 'large language model',
-      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
-      riskLevel: 'medium',
-      createdAt: new Date()
+      created_at: new Date()
     }).returning();
     
     const [claude3] = await db.insert(frontierModels).values({
       name: 'Claude 3 Opus',
       provider: 'Anthropic',
-      releaseDate: new Date('2024-03-04'),
+      release_date: new Date('2024-03-04'),
       description: 'Anthropic\'s most powerful multimodal model with state-of-the-art performance.',
-      category: 'large language model',
-      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
-      riskLevel: 'medium',
-      createdAt: new Date()
+      created_at: new Date()
     }).returning();
     
     const [gemini] = await db.insert(frontierModels).values({
       name: 'Gemini 1.5 Pro',
       provider: 'Google',
-      releaseDate: new Date('2024-02-15'),
+      release_date: new Date('2024-02-15'),
       description: 'Google\'s multimodal model with long context window and reasoning capabilities.',
-      category: 'large language model',
-      capabilities: ['text generation', 'image understanding', 'reasoning', 'coding'],
-      riskLevel: 'medium',
-      createdAt: new Date()
+      created_at: new Date()
     }).returning();
     
     const [llama3] = await db.insert(frontierModels).values({
       name: 'Llama 3',
       provider: 'Meta',
-      releaseDate: new Date('2024-04-18'),
+      release_date: new Date('2024-04-18'),
       description: 'Meta\'s open source large language model with strong performance.',
-      category: 'large language model',
-      capabilities: ['text generation', 'reasoning', 'coding'],
-      riskLevel: 'low',
-      createdAt: new Date()
+      created_at: new Date()
     }).returning();
     
     // Create model alerts
