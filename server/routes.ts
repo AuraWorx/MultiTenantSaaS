@@ -2230,8 +2230,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             columns: {
               id: true,
               username: true,
-              firstName: true,
-              lastName: true
+              first_name: true,
+              last_name: true
             }
           }
         },
