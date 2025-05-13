@@ -1946,20 +1946,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a frontier model alert
   app.post("/api/frontier-model-alerts", isAuthenticated, async (req, res) => {
     try {
-      // Validate data
-      const alertData = insertFrontierModelAlertSchema.parse(req.body);
+      console.log("User object:", JSON.stringify(req.user, null, 2));
       
-      // Add user_id and organization_id
-      const orgId = req.user.organization.id;
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Extract organization ID from user object (different structure due to serialization)
+      const orgId = req.user.organization_id;
       const userId = req.user.id;
+      
+      if (!orgId || !userId) {
+        return res.status(400).json({ 
+          message: "Missing organization or user data",
+          user: req.user
+        });
+      }
+      
+      // Prepare alert data with user and organization ID
+      const alertData = {
+        ...req.body,
+        user_id: userId,
+        organization_id: orgId
+      };
+      
+      // Validate the combined data
+      const validatedData = insertFrontierModelAlertSchema.parse(alertData);
       
       // Create alert
       const [newAlert] = await db.insert(frontierModelAlerts)
-        .values({
-          ...alertData,
-          user_id: userId,
-          organization_id: orgId
-        })
+        .values(validatedData)
         .returning();
       
       res.status(201).json(newAlert);

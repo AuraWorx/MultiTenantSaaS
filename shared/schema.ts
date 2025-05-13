@@ -71,6 +71,13 @@ export const riskItems = pgTable("risk_items", {
     .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Additional fields for risk actions
+  notes: text("notes"),
+  isAccepted: boolean("is_accepted").default(false),
+  isFlagged: boolean("is_flagged").default(false),
+  serviceNowTicketId: text("service_now_ticket_id"),
+  lastActionDate: timestamp("last_action_date"),
+  lastActionBy: integer("last_action_by").references(() => users.id),
 });
 
 // Compliance Issues

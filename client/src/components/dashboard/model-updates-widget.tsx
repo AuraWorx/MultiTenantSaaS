@@ -88,23 +88,15 @@ export function ModelUpdatesWidget() {
               <div className="space-y-3">
                 {filterUpdatesByType('security').map((update) => (
                   <div key={update.id} className="p-3 border rounded-md">
-                    <div className="flex justify-between mb-1">
-                      <div className="font-medium">{update.title}</div>
-                      <Badge variant="outline">{update.model?.name || "Unknown model"}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2">{update.description}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(update.update_date), 'PP')}
-                      </span>
+                    <div className="flex justify-between items-center">
+                      <div className="font-medium truncate mr-2">{update.title}</div>
                       {update.source_url && (
                         <Button 
                           variant="ghost" 
                           size="sm" 
                           onClick={() => openSourceUrl(update.source_url)}
                         >
-                          <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                          View Source
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
@@ -123,23 +115,15 @@ export function ModelUpdatesWidget() {
               <div className="space-y-3">
                 {filterUpdatesByType('feature').map((update) => (
                   <div key={update.id} className="p-3 border rounded-md">
-                    <div className="flex justify-between mb-1">
-                      <div className="font-medium">{update.title}</div>
-                      <Badge variant="outline">{update.model?.name || "Unknown model"}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2">{update.description}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(update.update_date), 'PP')}
-                      </span>
+                    <div className="flex justify-between items-center">
+                      <div className="font-medium truncate mr-2">{update.title}</div>
                       {update.source_url && (
                         <Button 
                           variant="ghost" 
                           size="sm" 
                           onClick={() => openSourceUrl(update.source_url)}
                         >
-                          <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                          View Source
+                          <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
