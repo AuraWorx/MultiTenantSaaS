@@ -490,8 +490,8 @@ export function FrontierModelAlerts() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Alert Type</Label>
               <RadioGroup
-                value={alertFormData.alertType}
-                onValueChange={(value) => setAlertFormData({...alertFormData, alertType: value as 'security' | 'feature'})}
+                value={alertFormData.alert_type}
+                onValueChange={(value) => setAlertFormData({...alertFormData, alert_type: value as 'security' | 'feature'})}
                 className="col-span-3"
               >
                 <div className="flex items-center space-x-2">
@@ -726,9 +726,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Security alert for ${selectedModel.name}`,
-                        alertType: 'security',
-                        frontierModelId: selectedModel.id,
-                        alertFrequency: 'daily'
+                        alert_type: 'security',
+                        frontier_model_id: selectedModel.id,
+                        alert_frequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
@@ -742,9 +742,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Feature alert for ${selectedModel.name}`,
-                        alertType: 'feature',
-                        frontierModelId: selectedModel.id,
-                        alertFrequency: 'daily'
+                        alert_type: 'feature',
+                        frontier_model_id: selectedModel.id,
+                        alert_frequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
