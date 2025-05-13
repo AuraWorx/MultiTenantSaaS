@@ -207,7 +207,7 @@ export function FrontierModelAlerts() {
       return;
     }
 
-    if (!alertFormData.frontier_model_id) {
+    if (!alertFormData.frontierModelId) {
       toast({
         title: 'Error',
         description: 'Please select a frontier model',
@@ -218,9 +218,9 @@ export function FrontierModelAlerts() {
 
     const payload = {
       name: alertFormData.name,
-      frontier_model_id: alertFormData.frontier_model_id,
-      alert_type: alertFormData.alert_type,
-      alert_frequency: alertFormData.alert_frequency
+      frontierModelId: alertFormData.frontierModelId,
+      alertType: alertFormData.alertType,
+      alertFrequency: alertFormData.alertFrequency
     };
     
     createAlertMutation.mutate(payload);
@@ -470,7 +470,7 @@ export function FrontierModelAlerts() {
                 Model
               </Label>
               <Select
-                onValueChange={(value) => setAlertFormData({...alertFormData, frontier_model_id: parseInt(value)})}
+                onValueChange={(value) => setAlertFormData({...alertFormData, frontierModelId: parseInt(value)})}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select a model" />
@@ -490,8 +490,8 @@ export function FrontierModelAlerts() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Alert Type</Label>
               <RadioGroup
-                value={alertFormData.alert_type}
-                onValueChange={(value) => setAlertFormData({...alertFormData, alert_type: value as 'security' | 'feature'})}
+                value={alertFormData.alertType}
+                onValueChange={(value) => setAlertFormData({...alertFormData, alertType: value as 'security' | 'feature'})}
                 className="col-span-3"
               >
                 <div className="flex items-center space-x-2">
@@ -729,9 +729,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Feature alert for ${selectedModel.name}`,
-                        alert_type: 'feature',
-                        frontier_model_id: selectedModel.id,
-                        alert_frequency: 'daily'
+                        alertType: 'feature',
+                        frontierModelId: selectedModel.id,
+                        alertFrequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);
