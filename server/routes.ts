@@ -1247,6 +1247,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Update a risk item
+  app.put("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Check if the risk item exists and belongs to the user's organization
+      const [existingRisk] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Update the risk item
+      const [updatedRiskItem] = await db
+        .update(riskItems)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ))
+        .returning();
+      
+      res.json(updatedRiskItem);
+    } catch (error) {
+      console.error("Error updating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk item", 
+        error: error.message 
+      });
+    }
+  });
+  
+  // Delete a risk item and its mitigations
+  app.delete("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Verify the risk item exists and belongs to the user's organization
+      const [existingRisk] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // First delete all associated mitigations
+      await db
+        .delete(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ));
+      
+      // Then delete the risk item
+      await db
+        .delete(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      res.status(200).json({ message: "Risk item and its mitigations deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to delete risk item", 
+        error: error.message 
+      });
+    }
+  });
 
   // Update a risk item
   app.patch("/api/risk-items/:id", isAuthenticated, async (req, res) => {

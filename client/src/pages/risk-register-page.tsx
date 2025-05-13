@@ -463,14 +463,16 @@ function EditRiskForm({ riskId, onCancel }: { riskId: number; onCancel: () => vo
     }
   });
   
+  // All mutations are already defined earlier in the component
+
   const onSubmit = (values: any) => {
     // Extract mitigation strategy and handle it separately
     const { mitigation, ...riskValues } = values;
     
-    // If a mitigation strategy is provided, we'll create a mitigation entry as well
+    // Update the risk item
     updateRiskMutation.mutate({
       ...riskValues,
-      hasMitigation: !!mitigation
+      hasMitigation: !!mitigation && mitigation !== "none"
     });
     
     // If mitigation is selected, create a mitigation record
@@ -481,11 +483,18 @@ function EditRiskForm({ riskId, onCancel }: { riskId: number; onCancel: () => vo
         notes: `Risk will be ${mitigation}ed according to organization policy.`
       };
       
+      // Use API directly since we removed the duplicate createMitigationMutation
       apiRequest("POST", `/api/risk-items/${riskId}/mitigations`, mitigationData)
-        .catch(err => {
+        .then(() => {
           toast({
-            title: "Warning",
-            description: `Risk updated but failed to add mitigation: ${err.message}`,
+            title: "Mitigation added",
+            description: "A new mitigation has been added to the risk."
+          });
+        })
+        .catch(error => {
+          toast({
+            title: "Error",
+            description: `Failed to add mitigation: ${error.message}`,
             variant: "destructive",
           });
         });
