@@ -32,6 +32,9 @@ async function seed() {
     await client.query('DELETE FROM github_scan_results');
     await client.query('DELETE FROM github_scan_summaries');
     await client.query('DELETE FROM github_scan_configs');
+    await client.query('DELETE FROM frontier_models_alerts');
+    await client.query('DELETE FROM frontier_models_alerts_config');
+    await client.query('DELETE FROM frontier_models_list');
     await client.query('DELETE FROM users');
     await client.query('DELETE FROM roles');
     await client.query('DELETE FROM organizations');

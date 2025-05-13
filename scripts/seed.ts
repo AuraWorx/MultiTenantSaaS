@@ -2,7 +2,8 @@ import { randomBytes, scryptSync } from 'crypto';
 import {
   users, organizations, roles, aiSystems, riskItems, riskMitigations, complianceIssues,
   githubScanConfigs, githubScanResults, githubScanSummaries,
-  biasAnalysisScans, biasAnalysisResults
+  biasAnalysisScans, biasAnalysisResults,
+  frontierModelsList, frontierModelsAlertsConfig, frontierModelsAlerts
 } from '../shared/schema';
 import { db, pool } from '../server/db';
 
@@ -442,6 +443,75 @@ async function seed() {
           'credit_history_length': 0.18
         }),
         recommendedActions: 'Remove zip code as a factor in lending decisions',
+        organizationId: adminOrg.id,
+      },
+    ]);
+
+    // Create Frontier Models
+    console.log('Creating frontier models list...');
+    const [gpt4o] = await db.insert(frontierModelsList).values({
+      modelId: 'gpt-4o',
+      name: 'GPT-4o',
+      provider: 'OpenAI',
+    }).returning();
+
+    const [claude] = await db.insert(frontierModelsList).values({
+      modelId: 'claude-3-sonnet',
+      name: 'Claude Sonnet 3.7',
+      provider: 'Anthropic',
+    }).returning();
+
+    const [gemini] = await db.insert(frontierModelsList).values({
+      modelId: 'gemini-ultra-1.5',
+      name: 'Gemini Ultra 1.5',
+      provider: 'Google',
+    }).returning();
+
+    // Create Frontier Model Alert Configurations
+    console.log('Creating frontier model alert configurations...');
+    const [gpt4oSecurityConfig] = await db.insert(frontierModelsAlertsConfig).values({
+      modelId: gpt4o.id,
+      organizationId: adminOrg.id,
+      category: 'security',
+    }).returning();
+
+    const [claudeFeatureConfig] = await db.insert(frontierModelsAlertsConfig).values({
+      modelId: claude.id,
+      organizationId: adminOrg.id,
+      category: 'feature',
+    }).returning();
+
+    const [geminiSecurityConfig] = await db.insert(frontierModelsAlertsConfig).values({
+      modelId: gemini.id,
+      organizationId: adminOrg.id,
+      category: 'security',
+    }).returning();
+
+    // Create Frontier Model Alerts
+    console.log('Creating frontier model alerts...');
+    await db.insert(frontierModelsAlerts).values([
+      {
+        alertConfigId: gpt4oSecurityConfig.id,
+        title: 'Security Vulnerability CVE-2024-1234',
+        description: 'Critical security issue discovered in GPT-4o that could allow prompt injection attacks',
+        url: 'https://example.com/openai-security',
+        datePublished: new Date('2024-05-10'),
+        organizationId: adminOrg.id,
+      },
+      {
+        alertConfigId: claudeFeatureConfig.id,
+        title: 'Claude Sonnet 3.7 New Feature Release',
+        description: 'Enhanced multimodal capabilities with improved vision understanding and better reasoning',
+        url: 'https://example.com/anthropic-features',
+        datePublished: new Date('2024-05-12'),
+        organizationId: adminOrg.id,
+      },
+      {
+        alertConfigId: geminiSecurityConfig.id,
+        title: 'Gemini Ultra 1.5 Security Update',
+        description: 'Important security patch addressing potential data leakage issues in latest model version',
+        url: 'https://example.com/gemini-security',
+        datePublished: new Date('2024-05-05'),
         organizationId: adminOrg.id,
       },
     ]);
