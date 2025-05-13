@@ -1654,6 +1654,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get risk items summary for risk assessment chart
+  app.get("/api/risk-items/summary", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get total risks count
+      const totalRisksResult = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(eq(riskItems.organizationId, organizationId));
+      const totalRisks = Number(totalRisksResult[0]?.count || 0);
+      
+      // Get flagged risks count
+      const flaggedRisksResult = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.organizationId, organizationId),
+          eq(riskItems.isFlagged, true)
+        ));
+      const flaggedRisks = Number(flaggedRisksResult[0]?.count || 0);
+      
+      // Get accepted risks count
+      const acceptedRisksResult = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.organizationId, organizationId),
+          eq(riskItems.isAccepted, true)
+        ));
+      const acceptedRisks = Number(acceptedRisksResult[0]?.count || 0);
+      
+      // Get open risks count
+      const openRisksResult = await db.select({ count: sql`count(*)` })
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.organizationId, organizationId),
+          eq(riskItems.status, 'open')
+        ));
+      const openRisks = Number(openRisksResult[0]?.count || 0);
+      
+      res.json({
+        totalRisks,
+        flaggedRisks,
+        acceptedRisks,
+        openRisks
+      });
+    } catch (error) {
+      console.error("Error fetching risk items summary:", error);
+      res.status(500).json({ message: "Failed to fetch risk items summary" });
+    }
+  });
+  
   // Bias Analysis API Endpoints
   
   // Get all bias analysis scans for the organization
@@ -2312,6 +2362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         update_type: frontierModelUpdates.update_type,
         source_url: frontierModelUpdates.source_url,
         update_date: frontierModelUpdates.update_date,
+        published_date: frontierModelUpdates.published_date,
         frontier_model_id: frontierModelUpdates.frontier_model_id,
         model: {
           id: frontierModels.id,
@@ -2350,6 +2401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         update_type: frontierModelUpdates.update_type,
         source_url: frontierModelUpdates.source_url,
         update_date: frontierModelUpdates.update_date,
+        published_date: frontierModelUpdates.published_date,
         frontier_model_id: frontierModelUpdates.frontier_model_id,
         created_at: frontierModelUpdates.created_at
       })

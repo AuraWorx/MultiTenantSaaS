@@ -4,6 +4,7 @@ import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DashboardCharts } from '@/components/dashboard/charts';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import { ModelUpdatesWidget } from '@/components/dashboard/model-updates-widget';
+import { RiskAssessmentChart } from '@/components/dashboard/risk-assessment-chart';
 import { DashboardStats, ActivityItem } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -30,17 +31,22 @@ export default function DashboardPage() {
               <>
                 <StatsCards stats={dashboardData.stats} />
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  <div className="md:col-span-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                  <div className="md:col-span-2">
                     <ModelUpdatesWidget />
                   </div>
                   <div className="md:col-span-1">
-                    <ActivityFeed activities={dashboardData.activities} />
+                    <RiskAssessmentChart />
                   </div>
                 </div>
                 
-                <div className="mt-6">
-                  <DashboardCharts />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  <div className="md:col-span-1">
+                    <ActivityFeed activities={dashboardData.activities} />
+                  </div>
+                  <div className="md:col-span-1">
+                    <DashboardCharts />
+                  </div>
                 </div>
               </>
             ) : (

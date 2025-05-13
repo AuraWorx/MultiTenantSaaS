@@ -82,6 +82,7 @@ export interface FrontierModelUpdate {
   update_type: 'security' | 'feature';
   source_url: string | null;
   update_date: string;
+  published_date: string | null;
   created_at: string;
   model?: {
     id: number;
