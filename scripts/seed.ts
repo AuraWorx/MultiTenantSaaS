@@ -1,9 +1,9 @@
 import { randomBytes, scryptSync } from 'crypto';
 import {
-  users, organizations, roles, aiSystems, riskItems, complianceIssues,
+  users, organizations, roles, aiSystems, riskItems, riskMitigations, complianceIssues,
   githubScanConfigs, githubScanResults, githubScanSummaries,
   biasAnalysisScans, biasAnalysisResults
-} from '@shared/schema';
+} from '../shared/schema';
 import { db, pool } from '../server/db';
 
 async function hashPassword(password: string) {
@@ -170,40 +170,94 @@ async function seed() {
 
     // Create Risk Items
     console.log('Creating risk items...');
-    await db.insert(riskItems).values([
+    const [privacyRisk] = await db.insert(riskItems).values({
+      title: 'Data Privacy Risk',
+      description: 'Risk of exposing customer PII through chat logs',
+      severity: 'high',
+      impact: 'high',
+      likelihood: 'medium',
+      category: 'privacy',
+      status: 'open',
+      systemDetails: 'Chatbot processes and stores user conversations that may contain sensitive data',
+      aiSystemId: chatbot.id,
+      organizationId: adminOrg.id,
+      createdById: adminUser.id,
+    }).returning();
+    
+    const [biasRisk] = await db.insert(riskItems).values({
+      title: 'Model Bias Risk',
+      description: 'Risk of bias in fraud detection for certain demographic groups',
+      severity: 'medium',
+      impact: 'high',
+      likelihood: 'medium',
+      category: 'bias',
+      status: 'mitigated',
+      systemDetails: 'Model may be biased against certain demographic groups due to training data imbalance',
+      aiSystemId: fraudSystem.id,
+      organizationId: adminOrg.id,
+      createdById: adminUser.id,
+    }).returning();
+    
+    const [hiringRisk] = await db.insert(riskItems).values({
+      title: 'Discriminatory Hiring Risk',
+      description: 'Risk of discrimination in candidate screening process',
+      severity: 'high',
+      impact: 'high',
+      likelihood: 'high',
+      category: 'bias',
+      status: 'open',
+      systemDetails: 'AI screening system may introduce unintended bias in hiring decisions',
+      aiSystemId: hrSystem.id,
+      organizationId: adminOrg.id,
+      createdById: demoUser.id,
+    }).returning();
+    
+    const [marketRisk] = await db.insert(riskItems).values({
+      title: 'Market Manipulation Risk',
+      description: 'Risk of algorithm causing market manipulation',
+      severity: 'critical',
+      impact: 'high',
+      likelihood: 'medium',
+      category: 'security',
+      status: 'open',
+      systemDetails: 'Algorithmic trading system could potentially cause market volatility or manipulation',
+      aiSystemId: tradingBot.id,
+      organizationId: financeOrg.id,
+      createdById: adminUser.id,
+    }).returning();
+    
+    // Create Risk Mitigations
+    console.log('Creating risk mitigations...');
+    await db.insert(riskMitigations).values([
       {
-        title: 'Data Privacy Risk',
-        description: 'Risk of exposing customer PII through chat logs',
-        severity: 'high',
-        status: 'open',
-        aiSystemId: chatbot.id,
+        riskItemId: biasRisk.id,
+        description: 'Rebalanced training data and implemented fairness metrics',
+        status: 'completed',
+        notes: 'Fairness metrics show improved performance across demographic groups',
         organizationId: adminOrg.id,
         createdById: adminUser.id,
       },
       {
-        title: 'Model Bias Risk',
-        description: 'Risk of bias in fraud detection for certain demographic groups',
-        severity: 'medium',
-        status: 'mitigated',
-        aiSystemId: fraudSystem.id,
+        riskItemId: privacyRisk.id,
+        description: 'Implement PII detection and automatic redaction',
+        status: 'in-progress',
+        notes: 'Currently evaluating PII detection libraries',
         organizationId: adminOrg.id,
         createdById: adminUser.id,
       },
       {
-        title: 'Discriminatory Hiring Risk',
-        description: 'Risk of discrimination in candidate screening process',
-        severity: 'high',
-        status: 'open',
-        aiSystemId: hrSystem.id,
+        riskItemId: hiringRisk.id,
+        description: 'Human oversight of all AI recommendations',
+        status: 'planned',
+        notes: 'Plan to implement by end of quarter',
         organizationId: adminOrg.id,
         createdById: demoUser.id,
       },
       {
-        title: 'Market Manipulation Risk',
-        description: 'Risk of algorithm causing market manipulation',
-        severity: 'critical',
-        status: 'open',
-        aiSystemId: tradingBot.id,
+        riskItemId: marketRisk.id,
+        description: 'Transfer risk through third-party monitoring service',
+        status: 'in-progress',
+        notes: 'Evaluating third-party services for real-time market monitoring',
         organizationId: financeOrg.id,
         createdById: adminUser.id,
       },

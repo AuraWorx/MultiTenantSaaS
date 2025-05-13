@@ -209,45 +209,100 @@ async function seed() {
 
     // Create Risk Items
     console.log('Creating risk items...');
-    await client.query(`
+    // Insert risk items with enhanced fields
+    const privacyRisk = await client.query(`
       INSERT INTO risk_items (
-        title, description, severity, status,
+        title, description, severity, impact, likelihood, category, status, system_details,
         ai_system_id, organization_id, created_by_id
       ) VALUES (
         'Data Privacy Risk', 'Risk of exposing customer PII through chat logs',
-        'high', 'open', $1, $2, $3
-      )
+        'high', 'high', 'medium', 'privacy', 'open', 
+        'Chatbot processes and stores user conversations that may contain sensitive data',
+        $1, $2, $3
+      ) RETURNING id
     `, [chatbot.id, adminOrg.id, adminUser.id]);
 
-    await client.query(`
+    const biasRisk = await client.query(`
       INSERT INTO risk_items (
-        title, description, severity, status,
+        title, description, severity, impact, likelihood, category, status, system_details,
         ai_system_id, organization_id, created_by_id
       ) VALUES (
         'Model Bias Risk', 'Risk of bias in fraud detection for certain demographic groups',
-        'medium', 'mitigated', $1, $2, $3
-      )
+        'medium', 'high', 'medium', 'bias', 'mitigated', 
+        'Model may be biased against certain demographic groups due to training data imbalance',
+        $1, $2, $3
+      ) RETURNING id
     `, [fraudSystem.id, adminOrg.id, adminUser.id]);
 
-    await client.query(`
+    const hiringRisk = await client.query(`
       INSERT INTO risk_items (
-        title, description, severity, status,
+        title, description, severity, impact, likelihood, category, status, system_details,
         ai_system_id, organization_id, created_by_id
       ) VALUES (
         'Discriminatory Hiring Risk', 'Risk of discrimination in candidate screening process',
-        'high', 'open', $1, $2, $3
-      )
+        'high', 'high', 'high', 'bias', 'open', 
+        'AI screening system may introduce unintended bias in hiring decisions',
+        $1, $2, $3
+      ) RETURNING id
     `, [hrSystem.id, adminOrg.id, demoUser.id]);
 
-    await client.query(`
+    const marketRisk = await client.query(`
       INSERT INTO risk_items (
-        title, description, severity, status,
+        title, description, severity, impact, likelihood, category, status, system_details,
         ai_system_id, organization_id, created_by_id
       ) VALUES (
         'Market Manipulation Risk', 'Risk of algorithm causing market manipulation',
-        'critical', 'open', $1, $2, $3
-      )
+        'critical', 'high', 'medium', 'security', 'open', 
+        'Algorithmic trading system could potentially cause market volatility or manipulation',
+        $1, $2, $3
+      ) RETURNING id
     `, [tradingBot.id, financeOrg.id, adminUser.id]);
+    
+    // Insert risk mitigations
+    console.log('Creating risk mitigations...');
+    await client.query(`
+      INSERT INTO risk_mitigations (
+        risk_item_id, description, status, notes, 
+        organization_id, created_by_id
+      ) VALUES (
+        $1, 'Rebalanced training data and implemented fairness metrics', 'completed',
+        'Fairness metrics show improved performance across demographic groups',
+        $2, $3
+      )
+    `, [biasRisk.rows[0].id, adminOrg.id, adminUser.id]);
+    
+    await client.query(`
+      INSERT INTO risk_mitigations (
+        risk_item_id, description, status, notes, 
+        organization_id, created_by_id
+      ) VALUES (
+        $1, 'Implement PII detection and automatic redaction', 'in-progress',
+        'Currently evaluating PII detection libraries',
+        $2, $3
+      )
+    `, [privacyRisk.rows[0].id, adminOrg.id, adminUser.id]);
+    
+    await client.query(`
+      INSERT INTO risk_mitigations (
+        risk_item_id, description, status, notes, 
+        organization_id, created_by_id
+      ) VALUES (
+        $1, 'Human oversight of all AI recommendations', 'planned',
+        'Plan to implement by end of quarter',
+        $2, $3
+      )
+    `, [hiringRisk.rows[0].id, adminOrg.id, demoUser.id]);
+    
+    await client.query(`
+      INSERT INTO risk_mitigations (
+        risk_item_id, description, status, notes, 
+        organization_id, created_by_id
+      ) VALUES (
+        $1, 'Transfer risk through third-party monitoring service', 'in-progress',
+        'Evaluating third-party services for real-time market monitoring',
+        $2, $3
+      )
+    `, [marketRisk.rows[0].id, financeOrg.id, adminUser.id]);
 
     // Create Compliance Issues
     console.log('Creating compliance issues...');
