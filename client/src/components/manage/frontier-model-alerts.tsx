@@ -30,9 +30,9 @@ export function FrontierModelAlerts() {
   // Form states
   const [alertFormData, setAlertFormData] = useState({
     name: '',
-    alertType: 'security',
-    frontierModelId: 0,
-    alertFrequency: 'daily'
+    alert_type: 'security',
+    frontier_model_id: 0,
+    alert_frequency: 'daily'
   });
   
   const [modelFormData, setModelFormData] = useState({
@@ -109,9 +109,9 @@ export function FrontierModelAlerts() {
       queryClient.invalidateQueries({ queryKey: ['/api/frontier-model-alerts'] });
       setAlertFormData({
         name: '',
-        alertType: 'security',
-        frontierModelId: 0,
-        alertFrequency: 'daily'
+        alert_type: 'security',
+        frontier_model_id: 0,
+        alert_frequency: 'daily'
       });
       setCreateAlertOpen(false);
       toast({
@@ -207,7 +207,7 @@ export function FrontierModelAlerts() {
       return;
     }
 
-    if (!alertFormData.frontierModelId) {
+    if (!alertFormData.frontier_model_id) {
       toast({
         title: 'Error',
         description: 'Please select a frontier model',
@@ -218,9 +218,9 @@ export function FrontierModelAlerts() {
 
     const payload = {
       name: alertFormData.name,
-      frontierModelId: alertFormData.frontierModelId,
-      alertType: alertFormData.alertType,
-      alertFrequency: alertFormData.alertFrequency
+      frontier_model_id: alertFormData.frontier_model_id,
+      alert_type: alertFormData.alert_type,
+      alert_frequency: alertFormData.alert_frequency
     };
     
     createAlertMutation.mutate(payload);
@@ -258,7 +258,7 @@ export function FrontierModelAlerts() {
 
   const filterUpdatesByType = (type: 'security' | 'feature') => {
     if (!updates) return [];
-    return updates.filter(update => update.updateType === type);
+    return updates.filter(update => update.update_type === type);
   };
 
   const getSecurityUpdatesCount = (modelId: number) => {
@@ -470,7 +470,7 @@ export function FrontierModelAlerts() {
                 Model
               </Label>
               <Select
-                onValueChange={(value) => setAlertFormData({...alertFormData, frontierModelId: parseInt(value)})}
+                onValueChange={(value) => setAlertFormData({...alertFormData, frontier_model_id: parseInt(value)})}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select a model" />
