@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { FeatureTabs } from '@/components/layout/feature-tabs';
 import { ManageFeatures } from '@/types';
+import { FrontierModelsAlerts } from '@/components/manage/frontier-models-alerts';
 
 const manageFeatures: ManageFeatures = {
   frontierModelAlerts: {
@@ -17,7 +18,7 @@ const manageFeatures: ManageFeatures = {
 };
 
 export default function ManagePage() {
-  const [currentTab, setCurrentTab] = useState<string | null>(null);
+  const [currentTab, setCurrentTab] = useState<string | null>(manageFeatures.frontierModelAlerts.id);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -45,11 +46,14 @@ export default function ManagePage() {
             ) : (
               <>
                 {currentTab === manageFeatures.frontierModelAlerts.id && (
-                  <div className="text-center py-8">
-                    <h2 className="text-xl font-semibold">Frontier Model Alerts</h2>
-                    <p className="mt-2 text-gray-600">
-                      Set up alerts for new frontier models and track their adoption in your organization.
-                    </p>
+                  <div>
+                    <div className="text-center py-4 mb-4">
+                      <h2 className="text-xl font-semibold">Frontier Model Alerts</h2>
+                      <p className="mt-2 text-gray-600">
+                        Stay informed about critical updates to frontier AI models
+                      </p>
+                    </div>
+                    <FrontierModelsAlerts />
                   </div>
                 )}
                 {currentTab === manageFeatures.riskMitigations.id && (

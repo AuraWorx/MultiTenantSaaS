@@ -19,7 +19,7 @@ import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
 import RiskRegisterPage from "./pages/risk-register-page";
 import AdminPage from "./pages/admin-page";
-import FrontierModelsPage from "./pages/frontier-models-page";
+// Removed standalone Frontier Models page as it's now integrated in the Manage page
 import { ReactNode } from "react";
 
 // Theme toggle button
@@ -104,11 +104,7 @@ function Router() {
           <AdminPage />
         </AppLayout>
       )} />
-      <ProtectedRoute path="/frontier-models" component={() => (
-        <AppLayout>
-          <FrontierModelsPage />
-        </AppLayout>
-      )} />
+      {/* Removed Frontier Models route as it's now integrated into the Manage page */}
       <Route component={NotFound} />
     </Switch>
   );

@@ -50,7 +50,7 @@ export function Sidebar() {
     { href: '/measure', icon: <BarChart2 className="w-5 h-5" />, text: 'Measure' },
     { href: '/manage', icon: <Settings className="w-5 h-5" />, text: 'Manage' },
     { href: '/risk-register', icon: <AlertTriangle className="w-5 h-5" />, text: 'Risk Register' },
-    { href: '/frontier-models', icon: <Sparkles className="w-5 h-5" />, text: 'Frontier Models' },
+    // Removed Frontier Models as it's now integrated into the Manage page
   ];
   
   // Only show the admin link if the user has admin permissions
