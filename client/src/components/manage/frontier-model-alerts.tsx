@@ -109,9 +109,9 @@ export function FrontierModelAlerts() {
       queryClient.invalidateQueries({ queryKey: ['/api/frontier-model-alerts'] });
       setAlertFormData({
         name: '',
-        alert_type: 'security',
-        frontier_model_id: 0,
-        alert_frequency: 'daily'
+        alertType: 'security',
+        frontierModelId: 0,
+        alertFrequency: 'daily'
       });
       setCreateAlertOpen(false);
       toast({
