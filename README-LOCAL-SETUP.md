@@ -205,10 +205,27 @@ The database schema has been enhanced with the following features:
    - Stores mitigation notes and descriptions
    - Links to risk items via foreign key
 
+3. **Frontier Models Alerts**:
+   - `frontier_models_list` table for tracking available AI models
+   - `frontier_models_alerts_config` table for alert configurations
+   - `frontier_models_alerts` table for storing model alerts
+   - Dashboard widget showing recent frontier model alerts
+   - Color-coded alerts by category (security, feature, compliance, ethics)
+   - Integration with the Manage page for full alert history and configuration
+
 After cloning or pulling the latest code, ensure you run:
 
 ```bash
 npm run db:push && ./seed-db.sh
 ```
 
-This will update your schema and seed the database with sample data that includes these enhanced fields.
+This will update your schema and seed the database with sample data that includes these enhanced fields and Frontier Models data.
+
+## Documentation
+
+For detailed feature documentation, see:
+
+- [User Guide](./docs/user_guide.md) - Complete user documentation
+- [Database Schema](./docs/database_schema.md) - Database structure and relationships
+- [Frontier Models Guide](./docs/frontier_models_guide.md) - Detailed guide for the Frontier Models feature
+- [Risk Register Guide](./docs/risk_register_guide.md) - Information on using the Risk Register

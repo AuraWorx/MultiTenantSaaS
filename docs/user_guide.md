@@ -45,6 +45,7 @@ After logging in, you'll be taken to the dashboard, which provides:
 - Compliance issues overview
 - Open risks count
 - Recent activity feed
+- Frontier Models alerts widget with latest model updates
 - Quick access to key features
 
 ### Navigation
@@ -236,21 +237,28 @@ The Manage module helps you control and govern AI systems throughout their lifec
 
 ### Frontier Model Alerts
 
-The Frontier Model Alerts feature provides notifications about newly deployed frontier models.
+The Frontier Model Alerts feature provides notifications about newly released frontier AI models and their security updates, helping organizations stay informed about the latest developments in the AI landscape.
 
 **Key Features:**
-- Receive alerts about new frontier models
-- Track capabilities and risks of new models
-- Get updates on industry best practices
-- Monitor deployment across your organization
-- Implement governance recommendations
+- Receive alerts about new frontier models and important updates
+- Track different alert categories (security, feature, compliance, ethics)
+- Configure notifications for specific AI model providers
+- Access detailed information via external links
+- View a timeline of model releases and security updates
+- Monitor AI model evolution across your organization
 
 **To use Frontier Model Alerts:**
-1. Navigate to Manage > Frontier Model Alerts
-2. View recent alerts and notifications
-3. Configure alert preferences
-4. Review detailed information about new models
-5. Track implementation status within your organization
+1. Navigate to Manage > Frontier Models (Alerts tab)
+2. View the complete alerts history with category indicators
+3. Configure which models to monitor in the Alert Configurations tab
+4. Add new alert configurations for specific models
+5. Click on alert details to access external resources and documentation
+6. Use filters to find specific types of alerts
+
+**Dashboard Integration:**
+- The Dashboard includes a Frontier Models widget showing recent alerts
+- Color-coded badges indicate alert categories (security alerts highlighted in red)
+- Quick links to detailed information and the full Manage page
 
 ### Risk Register
 

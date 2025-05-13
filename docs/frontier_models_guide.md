@@ -1,104 +1,96 @@
 # Frontier Models Alerts Guide
 
+This guide provides detailed information on using the Frontier Models Alerts feature in the AI Governance Platform.
+
 ## Overview
 
-The Frontier Models Alerts feature helps organizations stay informed about critical updates to frontier AI models like GPT-4o, Claude Sonnet 3.7, and Gemini Ultra 1.5. This feature allows organizations to:
-
-1. Track security vulnerabilities and patches
-2. Monitor new feature releases and model improvements
-3. Receive centralized notifications about important model changes
-4. Create and manage custom model alerts
+The Frontier Models Alerts feature helps organizations stay informed about the latest developments in frontier AI models, including new releases, security updates, and important features. This functionality is crucial for maintaining awareness of the rapidly evolving AI landscape and ensuring proper governance of AI technologies.
 
 ## Key Components
 
-### Alert Configurations
+### 1. Dashboard Widget
 
-Alert configurations determine which frontier models your organization tracks and what types of alerts you want to receive. Each configuration consists of:
+The Frontier Models widget on the Dashboard provides:
 
-- **Frontier Model**: The specific AI model to track (e.g., GPT-4o, Claude Sonnet 3.7, Gemini Ultra 1.5)
-- **Category**: The type of updates to track:
-  - **Security Updates**: Critical security patches, vulnerability notifications, and other security-related announcements
-  - **Feature Updates**: New capabilities, performance improvements, and other feature enhancements
+- At-a-glance view of the most recent frontier model alerts
+- Color-coded category badges (Security, Feature, Compliance, Ethics)
+- Quick links to external resources for more details
+- "View all" button to navigate to the full Manage page
 
-### Alert History
+### 2. Alerts History
 
-The Alert History section displays all alerts received based on your configurations. Each alert includes:
+In the Manage page under the Frontier Models tab, the Alerts History section offers:
 
-- **Title**: A brief description of the update
-- **Description**: Detailed information about the update
-- **Model and Provider**: Which model the alert pertains to
-- **Category**: Whether this is a security or feature update
-- **Publication Date**: When the alert was published
-- **Reference Link**: An external link to the official announcement or documentation
+- Comprehensive list of all frontier model alerts
+- Filtering capabilities by provider, category, and date
+- Detailed information about each alert
+- Links to external documentation and resources
+- Chronological display with newest alerts first
 
-## How to Use Frontier Models Alerts
+### 3. Alert Configurations
 
-### Setting Up Alert Configurations
+The Alert Configurations section allows you to:
 
-1. Navigate to the **Frontier Models** page via the sidebar
-2. Select the **Alert Configurations** tab
-3. Click the **New Configuration** button
-4. Select a model and category for the alerts
-5. Click **Create Configuration**
+- Configure which models you want to monitor
+- Set up categories of interest (Security, Feature, Compliance, Ethics)
+- Add new monitoring configurations
+- Edit or delete existing configurations
+- Associate alerts with specific organizations
 
-You can create multiple configurations to track different models and alert types.
+## Using Frontier Models Alerts
 
 ### Viewing Alerts
 
-#### Dashboard Widget
+1. Check the Dashboard for the latest alerts in the Frontier Models widget
+2. Navigate to Manage > Frontier Models > Alerts tab for a complete history
+3. Use filters to find alerts by provider (e.g., OpenAI, Anthropic, Google)
+4. Sort alerts by date, category, or importance
+5. Click on alert titles to view full details
 
-The Frontier Models Alerts widget on the dashboard shows the most recent alerts across all your configured models. This provides a quick overview of important updates.
+### Managing Alert Configurations
 
-#### Alert History
+1. Go to Manage > Frontier Models > Configurations tab
+2. View existing alert configurations
+3. Click "Add New Configuration" to set up monitoring for additional models
+4. Select a model from the dropdown list
+5. Choose a category to focus on (Security, Feature, etc.)
+6. Save the configuration
+7. Edit or delete configurations as needed
 
-For a comprehensive view of all alerts:
+### Understanding Alert Categories
 
-1. Navigate to the **Frontier Models** page
-2. Select the **Alert History** tab
-3. Browse all alerts in chronological order
-4. Click on external links for more detailed information
-
-### Creating Manual Alerts
-
-Organization administrators can create custom alerts:
-
-1. Navigate to the **Frontier Models** page
-2. Select the **Alert History** tab
-3. Click **New Alert**
-4. Select a model configuration
-5. Fill in the alert details (title, description, date, etc.)
-6. Click **Create Alert**
-
-This is useful for creating internal notifications about model updates relevant to your organization.
-
-### Managing Configurations
-
-To remove a configuration:
-
-1. Navigate to the **Alert Configurations** tab
-2. Find the configuration you want to remove
-3. Click the delete icon
-4. Confirm the deletion
-
-Note that deleting a configuration will also delete all associated alerts.
+- **Security**: Critical updates about model vulnerabilities, patches, and security concerns
+- **Feature**: New capabilities, improvements, or significant changes to models
+- **Compliance**: Updates related to regulatory compliance and legal considerations
+- **Ethics**: Information about ethical guidelines, principles, or concerns
 
 ## Best Practices
 
-1. **Set up alerts for all important models**: Track all frontier models your organization uses
-2. **Monitor security updates closely**: Security-related alerts should prompt immediate review
-3. **Share important alerts**: Use the alert history as a reference during team discussions
-4. **Create custom alerts**: Document organization-specific findings about models
-5. **Review alerts regularly**: Schedule a regular review of frontier model updates
+1. **Regular Monitoring**: Check the Dashboard and Frontier Models Alerts daily to stay informed
+2. **Prioritize Security Alerts**: Pay special attention to security-related alerts (red badges)
+3. **Configure Comprehensively**: Set up alerts for all major providers relevant to your organization
+4. **Document Actions**: Track your responses to important alerts for governance records
+5. **Share Knowledge**: Distribute critical alerts to relevant stakeholders in your organization
+6. **Connect to Risk Register**: Create risk items for significant security alerts that may impact your systems
 
 ## Troubleshooting
 
-- **Missing alerts**: Ensure you have configurations for the relevant models and categories
-- **Too many alerts**: Consider focusing only on models your organization actively uses
-- **Alert details**: For more comprehensive information, always follow the reference links
+- If alert configurations aren't saving, refresh the page and try again
+- If external links don't work, check your network connection
+- If no alerts appear for a specific provider, verify that you have the correct configuration set up
+- For any persistent issues, contact system administration
+
+## API Integration
+
+For advanced users, the Frontier Models Alerts can be accessed via API endpoints:
+
+- `GET /api/frontier-models`: List all available frontier models
+- `GET /api/frontier-models/alerts`: Retrieve all alerts
+- `GET /api/frontier-models/alerts-config`: Get alert configurations
+- `POST /api/frontier-models/alerts-config`: Create new alert configuration
 
 ## Additional Resources
 
-- Model provider documentation:
-  - [OpenAI Documentation](https://platform.openai.com/docs)
-  - [Anthropic Documentation](https://docs.anthropic.com/)
-  - [Google AI Documentation](https://ai.google.dev/docs)
+- [AI Governance Platform User Guide](./user_guide.md)
+- [Database Schema Documentation](./database_schema.md)
+- [Risk Register Guide](./risk_register_guide.md)
