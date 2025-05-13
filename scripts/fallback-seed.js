@@ -28,10 +28,24 @@ async function seed() {
 
     // Clear existing data
     console.log('Clearing existing data...');
-    await client.query('TRUNCATE users, organizations, roles, ai_systems, risk_items CASCADE');
+    
+    // Try to truncate all tables including Frontier Models tables if they exist
+    try {
+      await client.query(`
+        TRUNCATE users, organizations, roles, ai_systems, risk_items, 
+        frontier_models_alerts, frontier_models_alerts_config, frontier_models_list 
+        CASCADE
+      `);
+    } catch (error) {
+      // If the frontier models tables don't exist yet, fall back to the original tables
+      console.log('Frontier Models tables not found, using basic truncate...');
+      await client.query('TRUNCATE users, organizations, roles, ai_systems, risk_items CASCADE');
+    }
     
     // Reset sequences
     console.log('Resetting sequences...');
+    
+    // Basic sequences
     await client.query(`
       ALTER SEQUENCE organizations_id_seq RESTART WITH 1;
       ALTER SEQUENCE roles_id_seq RESTART WITH 1;
@@ -39,6 +53,18 @@ async function seed() {
       ALTER SEQUENCE ai_systems_id_seq RESTART WITH 1;
       ALTER SEQUENCE risk_items_id_seq RESTART WITH 1;
     `);
+    
+    // Check and reset Frontier Models sequences if they exist
+    try {
+      await client.query(`
+        ALTER SEQUENCE frontier_models_list_id_seq RESTART WITH 1;
+        ALTER SEQUENCE frontier_models_alerts_config_id_seq RESTART WITH 1;
+        ALTER SEQUENCE frontier_models_alerts_id_seq RESTART WITH 1;
+      `);
+      console.log('Reset Frontier Models sequences');
+    } catch (error) {
+      console.log('Frontier Models sequences not found, skipping...');
+    }
 
     // Create roles
     console.log('Creating roles...');
@@ -194,6 +220,89 @@ async function seed() {
           'medium', 'mitigated', $1, $2, $3
         )
       `, [fraudSystem.id, adminOrg.id, adminUser.id]);
+    }
+
+    // Create Frontier Models tables if they don't exist
+    console.log('Checking for Frontier Models tables...');
+    
+    // Check if frontier_models_list table exists
+    const frontierModelsTableExists = await client.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'frontier_models_list'
+      );
+    `);
+    
+    if (frontierModelsTableExists.rows[0].exists) {
+      console.log('Creating and populating Frontier Models data...');
+      
+      // Refresh all frontier models data
+      await client.query('DELETE FROM frontier_models_alerts');
+      await client.query('DELETE FROM frontier_models_alerts_config');
+      await client.query('DELETE FROM frontier_models_list');
+      
+      // Create frontier models
+      const gpt4o = await client.query(`
+        INSERT INTO frontier_models_list (model_id, name, provider)
+        VALUES ('gpt-4o', 'GPT-4o', 'OpenAI')
+        RETURNING id
+      `);
+      
+      const claude = await client.query(`
+        INSERT INTO frontier_models_list (model_id, name, provider)
+        VALUES ('claude-3-sonnet', 'Claude Sonnet 3.7', 'Anthropic')
+        RETURNING id
+      `);
+      
+      const gemini = await client.query(`
+        INSERT INTO frontier_models_list (model_id, name, provider)
+        VALUES ('gemini-ultra-1.5', 'Gemini Ultra 1.5', 'Google')
+        RETURNING id
+      `);
+      
+      // Create alert configurations
+      const gpt4oSecurityConfig = await client.query(`
+        INSERT INTO frontier_models_alerts_config (model_id, organization_id, category)
+        VALUES ($1, $2, 'security')
+        RETURNING id
+      `, [gpt4o.rows[0].id, adminOrg.id]);
+      
+      const claudeFeatureConfig = await client.query(`
+        INSERT INTO frontier_models_alerts_config (model_id, organization_id, category)
+        VALUES ($1, $2, 'feature')
+        RETURNING id
+      `, [claude.rows[0].id, adminOrg.id]);
+      
+      const geminiSecurityConfig = await client.query(`
+        INSERT INTO frontier_models_alerts_config (model_id, organization_id, category)
+        VALUES ($1, $2, 'security')
+        RETURNING id
+      `, [gemini.rows[0].id, adminOrg.id]);
+      
+      // Create alerts
+      await client.query(`
+        INSERT INTO frontier_models_alerts (alert_config_id, title, description, url, date_published, organization_id)
+        VALUES ($1, 'Security Vulnerability CVE-2024-1234', 
+                'Critical security issue discovered in GPT-4o that could allow prompt injection attacks',
+                'https://example.com/openai-security', '2024-05-10', $2)
+      `, [gpt4oSecurityConfig.rows[0].id, adminOrg.id]);
+      
+      await client.query(`
+        INSERT INTO frontier_models_alerts (alert_config_id, title, description, url, date_published, organization_id)
+        VALUES ($1, 'Claude Sonnet 3.7 New Feature Release', 
+                'Enhanced multimodal capabilities with improved vision understanding and better reasoning',
+                'https://example.com/anthropic-features', '2024-05-12', $2)
+      `, [claudeFeatureConfig.rows[0].id, adminOrg.id]);
+      
+      await client.query(`
+        INSERT INTO frontier_models_alerts (alert_config_id, title, description, url, date_published, organization_id)
+        VALUES ($1, 'Gemini Ultra 1.5 Security Update', 
+                'Important security patch addressing potential data leakage issues in latest model version',
+                'https://example.com/gemini-security', '2024-05-05', $2)
+      `, [geminiSecurityConfig.rows[0].id, adminOrg.id]);
+    } else {
+      console.log('Frontier Models tables do not exist yet. Skipping...');
     }
 
     console.log('Seed completed successfully!');
