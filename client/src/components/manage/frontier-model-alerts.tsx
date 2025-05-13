@@ -30,9 +30,9 @@ export function FrontierModelAlerts() {
   // Form states
   const [alertFormData, setAlertFormData] = useState({
     name: '',
-    alert_type: 'security',
-    frontier_model_id: 0,
-    alert_frequency: 'daily'
+    alertType: 'security',
+    frontierModelId: 0,
+    alertFrequency: 'daily'
   });
   
   const [modelFormData, setModelFormData] = useState({
@@ -603,17 +603,6 @@ export function FrontierModelAlerts() {
             <div className="grid gap-4 py-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Model Updates</h3>
-                {isAdmin && (
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleScrapeUpdates}
-                    disabled={scrapeUpdatesMutation.isPending}
-                  >
-                    {scrapeUpdatesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Fetch Latest Updates
-                  </Button>
-                )}
               </div>
 
               <Tabs defaultValue="security" className="w-full">
@@ -724,9 +713,9 @@ export function FrontierModelAlerts() {
                     onClick={() => {
                       setAlertFormData({
                         name: `Security alert for ${selectedModel.name}`,
-                        alert_type: 'security',
-                        frontier_model_id: selectedModel.id,
-                        alert_frequency: 'daily'
+                        alertType: 'security',
+                        frontierModelId: selectedModel.id,
+                        alertFrequency: 'daily'
                       });
                       setSelectedModel(null);
                       setCreateAlertOpen(true);

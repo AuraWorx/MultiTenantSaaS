@@ -2254,8 +2254,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      // Extract organization ID from user object (different structure due to serialization)
-      const orgId = req.user.organization_id;
+      // Extract organization ID from user object
+      const orgId = req.user.organization?.id;
       const userId = req.user.id;
       
       if (!orgId || !userId) {
@@ -2268,8 +2268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Prepare alert data with user and organization ID
       const alertData = {
         ...req.body,
-        user_id: userId,
-        organization_id: orgId
+        userId: userId,
+        organizationId: orgId
       };
       
       // Validate the combined data
