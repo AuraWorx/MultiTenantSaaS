@@ -1403,6 +1403,257 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get a specific risk item
+  app.get("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      const [risk] = await db.select()
+        .from(riskItems)
+        .where(
+          and(
+            eq(riskItems.id, riskId),
+            eq(riskItems.organizationId, organizationId)
+          )
+        );
+      
+      if (!risk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      res.json(risk);
+    } catch (error) {
+      console.error("Error fetching risk item:", error);
+      res.status(500).json({ message: "Failed to fetch risk item" });
+    }
+  });
+  
+  // Update a risk item
+  app.patch("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Verify risk belongs to user's organization
+      const existingRisk = await db.query.riskItems.findFirst({
+        where: and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        )
+      });
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Update the risk item
+      const [updatedRisk] = await db.update(riskItems)
+        .set({
+          ...req.body,
+          updatedAt: new Date()
+        })
+        .where(eq(riskItems.id, riskId))
+        .returning();
+      
+      res.json(updatedRisk);
+    } catch (error) {
+      console.error("Error updating risk item:", error);
+      res.status(500).json({ message: "Failed to update risk item" });
+    }
+  });
+  
+  // Add a note to a risk item
+  app.post("/api/risk-items/:id/add-note", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id || 1;
+      const { note } = req.body;
+      
+      if (!note || typeof note !== 'string') {
+        return res.status(400).json({ message: "Note is required" });
+      }
+      
+      // Verify risk belongs to user's organization
+      const existingRisk = await db.query.riskItems.findFirst({
+        where: and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        )
+      });
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Update with new note
+      const timestamp = new Date().toISOString();
+      const formattedNote = `[${timestamp}] ${note}`;
+      const notes = existingRisk.notes 
+        ? `${existingRisk.notes}\n\n${formattedNote}`
+        : formattedNote;
+      
+      const [updatedRisk] = await db.update(riskItems)
+        .set({ 
+          notes,
+          lastActionDate: new Date(),
+          lastActionBy: userId,
+          updatedAt: new Date()
+        })
+        .where(eq(riskItems.id, riskId))
+        .returning();
+      
+      res.json(updatedRisk);
+    } catch (error) {
+      console.error("Error adding note to risk item:", error);
+      res.status(500).json({ message: "Failed to add note to risk item" });
+    }
+  });
+
+  // Create a ServiceNow ticket for a risk item
+  app.post("/api/risk-items/:id/create-servicenow-ticket", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id || 1;
+      
+      // Verify risk belongs to user's organization
+      const existingRisk = await db.query.riskItems.findFirst({
+        where: and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        )
+      });
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Generate mock ServiceNow ticket ID (in a real implementation, this would call the ServiceNow API)
+      const ticketId = `INC${Math.floor(Math.random() * 1000000)}`;
+      const timestamp = new Date().toISOString();
+      
+      // Add note about creating ServiceNow ticket
+      const note = `[${timestamp}] Created ServiceNow ticket: ${ticketId}`;
+      const notes = existingRisk.notes 
+        ? `${existingRisk.notes}\n\n${note}`
+        : note;
+      
+      // Update risk with ticket ID and note
+      const [updatedRisk] = await db.update(riskItems)
+        .set({ 
+          serviceNowTicketId: ticketId,
+          notes,
+          lastActionDate: new Date(),
+          lastActionBy: userId,
+          updatedAt: new Date()
+        })
+        .where(eq(riskItems.id, riskId))
+        .returning();
+      
+      res.json({
+        ...updatedRisk,
+        message: "ServiceNow integration coming soon. This is a placeholder ticket ID."
+      });
+    } catch (error) {
+      console.error("Error creating ServiceNow ticket:", error);
+      res.status(500).json({ message: "Failed to create ServiceNow ticket" });
+    }
+  });
+
+  // Accept a risk item
+  app.post("/api/risk-items/:id/accept", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id || 1;
+      
+      // Verify risk belongs to user's organization
+      const existingRisk = await db.query.riskItems.findFirst({
+        where: and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        )
+      });
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Add acceptance note
+      const timestamp = new Date().toISOString();
+      const note = `[${timestamp}] Risk accepted`;
+      const notes = existingRisk.notes 
+        ? `${existingRisk.notes}\n\n${note}`
+        : note;
+      
+      // Update risk as accepted
+      const [updatedRisk] = await db.update(riskItems)
+        .set({ 
+          isAccepted: true,
+          isFlagged: false, // Clear flagged status if present
+          notes,
+          lastActionDate: new Date(),
+          lastActionBy: userId,
+          updatedAt: new Date()
+        })
+        .where(eq(riskItems.id, riskId))
+        .returning();
+      
+      res.json(updatedRisk);
+    } catch (error) {
+      console.error("Error accepting risk item:", error);
+      res.status(500).json({ message: "Failed to accept risk item" });
+    }
+  });
+
+  // Flag a risk item
+  app.post("/api/risk-items/:id/flag", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id || 1;
+      
+      // Verify risk belongs to user's organization
+      const existingRisk = await db.query.riskItems.findFirst({
+        where: and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        )
+      });
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Add flag note
+      const timestamp = new Date().toISOString();
+      const note = `[${timestamp}] Risk flagged for review`;
+      const notes = existingRisk.notes 
+        ? `${existingRisk.notes}\n\n${note}`
+        : note;
+      
+      // Update risk as flagged
+      const [updatedRisk] = await db.update(riskItems)
+        .set({ 
+          isFlagged: true,
+          isAccepted: false, // Clear accepted status if present
+          notes,
+          lastActionDate: new Date(),
+          lastActionBy: userId,
+          updatedAt: new Date()
+        })
+        .where(eq(riskItems.id, riskId))
+        .returning();
+      
+      res.json(updatedRisk);
+    } catch (error) {
+      console.error("Error flagging risk item:", error);
+      res.status(500).json({ message: "Failed to flag risk item" });
+    }
+  });
+  
   // Bias Analysis API Endpoints
   
   // Get all bias analysis scans for the organization
