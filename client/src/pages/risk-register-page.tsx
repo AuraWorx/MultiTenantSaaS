@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { TopNavbar } from "@/components/layout/top-navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,33 +16,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  FileEdit,
-  Ticket,
-  CheckCircle,
-  Flag,
-  MoreHorizontal,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { RiskItem } from "@shared/schema";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 
 export default function RiskRegisterPage() {
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState<string>("");
-  const [selectedRiskId, setSelectedRiskId] = useState<number | null>(null);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Query risk items
   const { data: riskItems, isLoading } = useQuery<RiskItem[]>({
@@ -57,116 +37,6 @@ export default function RiskRegisterPage() {
         return true;
       })
     : [];
-    
-  // Add Note Mutation
-  const addNoteMutation = useMutation({
-    mutationFn: async (payload: { id: number; note: string }) => {
-      const res = await apiRequest("POST", `/api/risk-items/${payload.id}/add-note`, { note: payload.note });
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
-      toast({
-        title: "Note Added",
-        description: "Your note has been added to the risk item.",
-      });
-      setNoteText("");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: `Failed to add note: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Create ServiceNow Ticket Mutation
-  const createServiceNowTicketMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/risk-items/${id}/create-servicenow-ticket`, {});
-      return await res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
-      toast({
-        title: "ServiceNow Ticket Created",
-        description: data.message || "A ServiceNow ticket has been created.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: `Failed to create ServiceNow ticket: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Accept Risk Mutation
-  const acceptRiskMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/risk-items/${id}/accept`, {});
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
-      toast({
-        title: "Risk Accepted",
-        description: "The risk has been marked as accepted.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: `Failed to accept risk: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Flag Risk Mutation
-  const flagRiskMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/risk-items/${id}/flag`, {});
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
-      toast({
-        title: "Risk Flagged",
-        description: "The risk has been flagged for review.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: `Failed to flag risk: ${error.message}`,
-        variant: "destructive",
-      });
-    },
-  });
-  
-  // Handle adding a note
-  const handleAddNote = (id: number) => {
-    setSelectedRiskId(id);
-    setNoteText("");
-  };
-  
-  // Handle note submission
-  const handleNoteSubmit = () => {
-    if (!selectedRiskId) return;
-    if (!noteText.trim()) {
-      toast({
-        title: "Error", 
-        description: "Please enter a note",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    addNoteMutation.mutate({ id: selectedRiskId, note: noteText });
-  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
@@ -338,81 +208,9 @@ export default function RiskRegisterPage() {
                       {new Date(item.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="min-w-28 flex items-center justify-between">
-                            Actions <MoreHorizontal className="ml-2 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <DropdownMenuItem 
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  handleAddNote(item.id);
-                                }}
-                                className="cursor-pointer"
-                              >
-                                <FileEdit className="mr-2 h-4 w-4" />
-                                Add a note
-                              </DropdownMenuItem>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Add Note to Risk Item</DialogTitle>
-                              </DialogHeader>
-                              <div className="grid gap-4 py-4">
-                                <Label htmlFor="note">Note</Label>
-                                <Textarea 
-                                  id="note" 
-                                  placeholder="Enter your note here..." 
-                                  value={noteText}
-                                  onChange={(e) => setNoteText(e.target.value)}
-                                  className="min-h-[100px]"
-                                />
-                              </div>
-                              <DialogFooter>
-                                <Button
-                                  onClick={handleNoteSubmit}
-                                  disabled={addNoteMutation.isPending}
-                                >
-                                  {addNoteMutation.isPending ? "Saving..." : "Save Note"}
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                          
-                          <DropdownMenuItem 
-                            onClick={() => createServiceNowTicketMutation.mutate(item.id)}
-                            disabled={createServiceNowTicketMutation.isPending}
-                            className="cursor-pointer"
-                          >
-                            <Ticket className="mr-2 h-4 w-4" />
-                            Create ServiceNow ticket
-                          </DropdownMenuItem>
-                          
-                          <DropdownMenuItem 
-                            onClick={() => acceptRiskMutation.mutate(item.id)}
-                            disabled={acceptRiskMutation.isPending || item.isAccepted}
-                            className={`cursor-pointer ${item.isAccepted ? 'opacity-50' : ''}`}
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Accept risk
-                            {item.isAccepted && <span className="ml-auto text-xs text-muted-foreground">(Accepted)</span>}
-                          </DropdownMenuItem>
-                          
-                          <DropdownMenuItem 
-                            onClick={() => flagRiskMutation.mutate(item.id)}
-                            disabled={flagRiskMutation.isPending || item.isFlagged}
-                            className={`cursor-pointer ${item.isFlagged ? 'opacity-50' : ''}`}
-                          >
-                            <Flag className="mr-2 h-4 w-4" />
-                            Flag for review
-                            {item.isFlagged && <span className="ml-auto text-xs text-muted-foreground">(Flagged)</span>}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button variant="outline" size="sm">
+                        View Details
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

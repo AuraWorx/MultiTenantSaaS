@@ -2,8 +2,7 @@ import { randomBytes, scryptSync } from 'crypto';
 import {
   users, organizations, roles, aiSystems, riskItems, complianceIssues,
   githubScanConfigs, githubScanResults, githubScanSummaries,
-  biasAnalysisScans, biasAnalysisResults, frontierModels,
-  frontierModelAlerts, frontierModelUpdates
+  biasAnalysisScans, biasAnalysisResults
 } from '@shared/schema';
 import { db, pool } from '../server/db';
 
@@ -27,9 +26,6 @@ async function seed() {
     await db.delete(githubScanResults);
     await db.delete(githubScanSummaries);
     await db.delete(githubScanConfigs);
-    await db.delete(frontierModelUpdates);
-    await db.delete(frontierModelAlerts);
-    await db.delete(frontierModels);
     await db.delete(users);
     await db.delete(roles);
     await db.delete(organizations);
@@ -180,91 +176,36 @@ async function seed() {
         description: 'Risk of exposing customer PII through chat logs',
         severity: 'high',
         status: 'open',
-        ai_system_id: chatbot.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: true,
-        is_accepted: false,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: chatbot.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
       },
       {
         title: 'Model Bias Risk',
         description: 'Risk of bias in fraud detection for certain demographic groups',
         severity: 'medium',
         status: 'mitigated',
-        ai_system_id: fraudSystem.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: false,
-        is_accepted: true,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: fraudSystem.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
       },
       {
         title: 'Discriminatory Hiring Risk',
         description: 'Risk of discrimination in candidate screening process',
         severity: 'high',
         status: 'open',
-        ai_system_id: hrSystem.id,
-        organization_id: adminOrg.id,
-        created_by_id: demoUser.id,
-        is_flagged: true,
-        is_accepted: false,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: hrSystem.id,
+        organizationId: adminOrg.id,
+        createdById: demoUser.id,
       },
       {
         title: 'Market Manipulation Risk',
         description: 'Risk of algorithm causing market manipulation',
         severity: 'critical',
         status: 'open',
-        ai_system_id: tradingBot.id,
-        organization_id: financeOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: true,
-        is_accepted: false,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        title: 'Prompt Injection Vulnerability',
-        description: 'System vulnerable to prompt injection attacks that could reveal system information',
-        severity: 'high',
-        status: 'open',
-        ai_system_id: chatbot.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: true,
-        is_accepted: false,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        title: 'Data Retention Policy Violation',
-        description: 'AI system storing user data longer than allowed by company policy',
-        severity: 'low',
-        status: 'mitigated',
-        ai_system_id: chatbot.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: false,
-        is_accepted: true,
-        created_at: new Date(),
-        updated_at: new Date()
-      },
-      {
-        title: 'Unfiltered Toxic Content',
-        description: 'AI generating inappropriate content without sufficient content filtering',
-        severity: 'medium',
-        status: 'open',
-        ai_system_id: fraudSystem.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        is_flagged: false,
-        is_accepted: false,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: tradingBot.id,
+        organizationId: financeOrg.id,
+        createdById: adminUser.id,
       },
     ]);
 
@@ -276,59 +217,53 @@ async function seed() {
         description: 'Missing consent collection mechanism for chat data storage',
         severity: 'high',
         status: 'open',
-        ai_system_id: chatbot.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: chatbot.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
       },
       {
         title: 'Missing Model Documentation',
         description: 'Inadequate documentation of model training data and parameters',
         severity: 'medium',
         status: 'in-progress',
-        ai_system_id: fraudSystem.id,
-        organization_id: adminOrg.id,
-        created_by_id: adminUser.id,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: fraudSystem.id,
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
       },
       {
         title: 'Equal Employment Issue',
         description: 'Potential violation of equal employment opportunity regulations',
         severity: 'high',
         status: 'open',
-        ai_system_id: hrSystem.id,
-        organization_id: adminOrg.id,
-        created_by_id: demoUser.id,
-        created_at: new Date(),
-        updated_at: new Date()
+        aiSystemId: hrSystem.id,
+        organizationId: adminOrg.id,
+        createdById: demoUser.id,
       }
     ]);
 
     // Create GitHub Scan Configs
     console.log('Creating GitHub scan configs...');
     const [auraWorxConfig] = await db.insert(githubScanConfigs).values({
-      github_org_name: 'AuraWorx',
-      organization_id: adminOrg.id,
-      created_by_id: adminUser.id,
-      last_scan_at: new Date(),
+      githubOrgName: 'AuraWorx',
+      organizationId: adminOrg.id,
+      createdById: adminUser.id,
+      lastScanAt: new Date(),
       status: 'completed',
     }).returning();
 
     const [techCorpConfig] = await db.insert(githubScanConfigs).values({
-      github_org_name: 'TechCorp',
-      organization_id: techOrg.id,
-      created_by_id: techAdmin.id,
-      last_scan_at: new Date(),
+      githubOrgName: 'TechCorp',
+      organizationId: techOrg.id,
+      createdById: techAdmin.id,
+      lastScanAt: new Date(),
       status: 'completed',
     }).returning();
 
     const [financeCorpConfig] = await db.insert(githubScanConfigs).values({
-      github_org_name: 'FinanceCorp',
-      organization_id: financeOrg.id,
-      created_by_id: adminUser.id,
-      last_scan_at: null,
+      githubOrgName: 'FinanceCorp',
+      organizationId: financeOrg.id,
+      createdById: adminUser.id,
+      lastScanAt: null,
       status: 'pending',
     }).returning();
 
@@ -455,109 +390,6 @@ async function seed() {
         recommendedActions: 'Remove zip code as a factor in lending decisions',
         organizationId: adminOrg.id,
       },
-    ]);
-    
-    // Create frontier models
-    console.log('Creating frontier models...');
-    const [gpt4] = await db.insert(frontierModels).values({
-      name: 'GPT-4o',
-      provider: 'OpenAI',
-      release_date: new Date('2024-05-13'),
-      description: 'The newest multimodal model from OpenAI with advanced reasoning and vision capabilities.',
-      created_at: new Date()
-    }).returning();
-    
-    const [claude3] = await db.insert(frontierModels).values({
-      name: 'Claude 3 Opus',
-      provider: 'Anthropic',
-      release_date: new Date('2024-03-04'),
-      description: 'Anthropic\'s most powerful multimodal model with state-of-the-art performance.',
-      created_at: new Date()
-    }).returning();
-    
-    const [gemini] = await db.insert(frontierModels).values({
-      name: 'Gemini 1.5 Pro',
-      provider: 'Google',
-      release_date: new Date('2024-02-15'),
-      description: 'Google\'s multimodal model with long context window and reasoning capabilities.',
-      created_at: new Date()
-    }).returning();
-    
-    const [llama3] = await db.insert(frontierModels).values({
-      name: 'Llama 3',
-      provider: 'Meta',
-      release_date: new Date('2024-04-18'),
-      description: 'Meta\'s open source large language model with strong performance.',
-      created_at: new Date()
-    }).returning();
-    
-    // Create model alerts
-    console.log('Creating model alerts...');
-    await db.insert(frontierModelAlerts).values([
-      {
-        user_id: adminUser.id,
-        organization_id: adminOrg.id,
-        frontier_model_id: gpt4.id,
-        name: 'GPT-4 Security & Feature Alerts',
-        alert_type: 'security',
-        alert_frequency: 'daily',
-        created_at: new Date()
-      },
-      {
-        user_id: demoUser.id,
-        organization_id: auraWorx.id,
-        frontier_model_id: claude3.id,
-        name: 'Claude 3 Security & Feature Alerts',
-        alert_type: 'feature',
-        alert_frequency: 'weekly',
-        created_at: new Date()
-      },
-      {
-        user_id: demoUser.id,
-        organization_id: auraWorx.id,
-        frontier_model_id: gpt4.id,
-        name: 'GPT-4 Security Alerts',
-        alert_type: 'security',
-        alert_frequency: 'daily',
-        created_at: new Date()
-      }
-    ]);
-    
-    // Create model updates
-    console.log('Creating model updates...');
-    await db.insert(frontierModelUpdates).values([
-      {
-        frontierModelId: gpt4.id,
-        title: 'Security Update: Enhanced Input Filtering',
-        description: 'Improved security measures for filtering potentially harmful inputs and enhancing user data protection.',
-        updateType: 'security',
-        sourceUrl: 'https://openai.com/blog/security-update-may-2024',
-        updateDate: new Date('2024-05-10')
-      },
-      {
-        frontierModelId: gpt4.id,
-        title: 'Feature Update: Improved Vision Capabilities',
-        description: 'Enhanced vision model with improved accuracy for image recognition and understanding complex diagrams.',
-        updateType: 'feature',
-        sourceUrl: 'https://openai.com/blog/gpt4o-vision-improvements',
-        updateDate: new Date('2024-05-05')
-      },
-      {
-        frontierModelId: claude3.id,
-        title: 'Security Update: Privacy Protections',
-        description: 'Strengthened privacy protections and enhanced data handling protocols.',
-        updateType: 'security',
-        sourceUrl: 'https://www.anthropic.com/blog/privacy-update-2024',
-        updateDate: new Date('2024-04-22')
-      },
-      {
-        frontierModelId: claude3.id,
-        title: 'Feature Update: Expanded Knowledge Cutoff',
-        description: 'Knowledge cutoff extended with more recent information and improved factual accuracy.',
-        updateType: 'feature',
-        sourceUrl: 'https://www.anthropic.com/blog/claude-knowledge-update',
-        updateDate: new Date('2024-04-18')
-      }
     ]);
 
     console.log('Database seed completed successfully!');

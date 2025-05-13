@@ -33,65 +33,6 @@ export interface ManageFeatures {
   lifecycleManagement: Feature;
 }
 
-// Frontier Model Types
-export interface FrontierModel {
-  id: number;
-  name: string;
-  provider: string;
-  description: string | null;
-  release_date: string | null;
-  created_at: string;
-  created_by_id: number;
-  organization_id: number;
-  created_by?: {
-    id: number;
-    username: string;
-    firstName: string | null;
-    lastName: string | null;
-  };
-  organization?: {
-    id: number;
-    name: string;
-  };
-}
-
-export interface FrontierModelAlert {
-  id: number;
-  name: string;
-  frontier_model_id: number;
-  organization_id: number;
-  user_id: number;
-  alert_type: 'security' | 'feature';
-  alert_frequency: 'daily' | 'weekly' | 'monthly';
-  created_at: string;
-  updated_at: string;
-  active: boolean;
-  model?: FrontierModel;
-  user?: {
-    id: number;
-    username: string;
-    firstName: string | null;
-    lastName: string | null;
-  };
-}
-
-export interface FrontierModelUpdate {
-  id: number;
-  frontier_model_id: number;
-  title: string;
-  description: string;
-  update_type: 'security' | 'feature';
-  source_url: string | null;
-  update_date: string;
-  published_date: string | null;
-  created_at: string;
-  model?: {
-    id: number;
-    name: string;
-    provider: string;
-  };
-}
-
 export interface DashboardStats {
   aiSystemsCount: number;
   complianceIssuesCount: number;
