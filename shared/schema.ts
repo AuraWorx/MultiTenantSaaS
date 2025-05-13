@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -431,3 +431,99 @@ export type InsertBiasAnalysisScan = z.infer<typeof insertBiasAnalysisScanSchema
 
 export type BiasAnalysisResult = typeof biasAnalysisResults.$inferSelect;
 export type InsertBiasAnalysisResult = z.infer<typeof insertBiasAnalysisResultSchema>;
+
+// Frontier Models Schema
+export const frontierModelsList = pgTable("frontier_models_list", {
+  id: serial("id").primaryKey(),
+  model_id: text("model_id").notNull().unique(),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(),
+  release_date: timestamp("release_date"),
+  description: text("description"),
+  capabilities: text("capabilities").array(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const frontierModelsAlertsConfig = pgTable("frontier_models_alerts_config", {
+  id: serial("id").primaryKey(),
+  model_id: integer("model_id").references(() => frontierModelsList.id).notNull(),
+  category: text("category").notNull(), // 'security' or 'feature'
+  organization_id: integer("organization_id").references(() => organizations.id).notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const frontierModelsAlerts = pgTable("frontier_models_alerts", {
+  id: serial("id").primaryKey(),
+  alert_config_id: integer("alert_config_id").references(() => frontierModelsAlertsConfig.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url"),
+  date_published: timestamp("date_published").notNull(),
+  organization_id: integer("organization_id").references(() => organizations.id).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Relations for frontier models
+export const frontierModelsListRelations = relations(frontierModelsList, ({ many }) => ({
+  alertConfigs: many(frontierModelsAlertsConfig),
+}));
+
+export const frontierModelsAlertsConfigRelations = relations(frontierModelsAlertsConfig, ({ one, many }) => ({
+  model: one(frontierModelsList, {
+    fields: [frontierModelsAlertsConfig.model_id],
+    references: [frontierModelsList.id],
+  }),
+  alerts: many(frontierModelsAlerts),
+  organization: one(organizations, {
+    fields: [frontierModelsAlertsConfig.organization_id],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [frontierModelsAlertsConfig.created_by_id],
+    references: [users.id],
+  }),
+}));
+
+export const frontierModelsAlertsRelations = relations(frontierModelsAlerts, ({ one }) => ({
+  alertConfig: one(frontierModelsAlertsConfig, {
+    fields: [frontierModelsAlerts.alert_config_id],
+    references: [frontierModelsAlertsConfig.id],
+  }),
+  organization: one(organizations, {
+    fields: [frontierModelsAlerts.organization_id],
+    references: [organizations.id],
+  }),
+}));
+
+// Schemas for frontier models
+export const insertFrontierModelSchema = createInsertSchema(frontierModelsList, {
+  capabilities: z.array(z.string()).optional(),
+}).omit({ 
+  id: true, 
+  created_at: true, 
+  updated_at: true 
+});
+
+export const insertFrontierModelsAlertsConfigSchema = createInsertSchema(frontierModelsAlertsConfig).omit({ 
+  id: true, 
+  created_at: true, 
+  updated_at: true 
+});
+
+export const insertFrontierModelsAlertsSchema = createInsertSchema(frontierModelsAlerts).omit({ 
+  id: true, 
+  created_at: true 
+});
+
+// Types for frontier models
+export type FrontierModel = typeof frontierModelsList.$inferSelect;
+export type InsertFrontierModel = z.infer<typeof insertFrontierModelSchema>;
+
+export type FrontierModelsAlertsConfig = typeof frontierModelsAlertsConfig.$inferSelect;
+export type InsertFrontierModelsAlertsConfig = z.infer<typeof insertFrontierModelsAlertsConfigSchema>;
+
+export type FrontierModelsAlert = typeof frontierModelsAlerts.$inferSelect;
+export type InsertFrontierModelsAlert = z.infer<typeof insertFrontierModelsAlertsSchema>;
