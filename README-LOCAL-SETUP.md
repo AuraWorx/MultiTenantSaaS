@@ -75,6 +75,22 @@ The script will:
 - Install any missing dependencies if needed
 - Create database tables and populate them with sample data
 
+If you encounter errors about missing columns (for example, "column 'impact' does not exist"), it means your database schema needs to be updated. Run:
+
+```bash
+# Update the database schema first
+npm run db:push
+
+# Then seed the database
+./seed-db.sh
+```
+
+Alternatively, you can use the fallback seed script that works with both old and new schemas:
+
+```bash
+node scripts/fallback-seed.js
+```
+
 The seed script will populate your database with:
 - Organizations (Admin Organization and Finance Corp.)
 - Roles (Administrator, User, Analyst, Viewer)
