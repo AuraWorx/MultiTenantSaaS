@@ -3,6 +3,7 @@ import { TopNavbar } from '@/components/layout/top-navbar';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DashboardCharts } from '@/components/dashboard/charts';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
+import { ModelUpdatesWidget } from '@/components/dashboard/model-updates-widget';
 import { DashboardStats, ActivityItem } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -28,8 +29,19 @@ export default function DashboardPage() {
             ) : dashboardData ? (
               <>
                 <StatsCards stats={dashboardData.stats} />
-                <DashboardCharts />
-                <ActivityFeed activities={dashboardData.activities} />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                  <div className="md:col-span-1">
+                    <ModelUpdatesWidget />
+                  </div>
+                  <div className="md:col-span-1">
+                    <ActivityFeed activities={dashboardData.activities} />
+                  </div>
+                </div>
+                
+                <div className="mt-6">
+                  <DashboardCharts />
+                </div>
               </>
             ) : (
               <div className="text-center py-12">

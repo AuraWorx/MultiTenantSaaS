@@ -83,6 +83,11 @@ export interface FrontierModelUpdate {
   source_url: string | null;
   update_date: string;
   created_at: string;
+  model?: {
+    id: number;
+    name: string;
+    provider: string;
+  };
 }
 
 export interface DashboardStats {

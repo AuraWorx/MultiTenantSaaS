@@ -2034,6 +2034,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // =================== Frontier Model Updates API Routes ===================
   
+  // Get all updates for a specific frontier model
+  app.get("/api/frontier-model-updates/:modelId", isAuthenticated, async (req, res) => {
+    try {
+      const modelId = parseInt(req.params.modelId);
+      
+      const updates = await db.select()
+        .from(frontierModelUpdates)
+        .where(eq(frontierModelUpdates.frontier_model_id, modelId))
+        .orderBy(desc(frontierModelUpdates.update_date));
+      
+      res.json(updates);
+    } catch (error) {
+      console.error("Error fetching frontier model updates:", error);
+      res.status(500).json({ message: "Failed to fetch frontier model updates" });
+    }
+  });
+  
   // Get latest updates across all models for the dashboard widget
   app.get("/api/frontier-model-updates/latest", isAuthenticated, async (req, res) => {
     try {
