@@ -605,33 +605,9 @@ export default function RiskRegisterPage() {
       })
     : [];
 
-  function getSeverityColor(severity: string): string {
-    switch (severity.toLowerCase()) {
-      case "critical":
-        return "text-red-600 bg-red-100 border-red-200";
-      case "high":
-        return "text-orange-600 bg-orange-100 border-orange-200";
-      case "medium":
-        return "text-yellow-600 bg-yellow-100 border-yellow-200";
-      case "low":
-        return "text-green-600 bg-green-100 border-green-200";
-      default:
-        return "text-gray-600 bg-gray-100 border-gray-200";
-    }
-  };
+  // Display handling for risk data visualization
 
-  function getStatusIcon(status: string): JSX.Element {
-    switch (status.toLowerCase()) {
-      case "open":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case "mitigated":
-        return <Clock className="h-4 w-4 text-blue-500" />;
-      case "closed":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      default:
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-    }
-  };
+  // Removed redundant helper functions - now using inline conditional rendering
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -781,7 +757,11 @@ export default function RiskRegisterPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={`${getSeverityColor(item.severity)}`}
+                        className={item.severity === 'critical' ? 'text-red-600 bg-red-100 border-red-200' : 
+                          item.severity === 'high' ? 'text-orange-600 bg-orange-100 border-orange-200' : 
+                          item.severity === 'medium' ? 'text-yellow-600 bg-yellow-100 border-yellow-200' : 
+                          item.severity === 'low' ? 'text-green-600 bg-green-100 border-green-200' : 
+                          'text-gray-600 bg-gray-100 border-gray-200'}
                       >
                         {item.severity.charAt(0).toUpperCase() +
                           item.severity.slice(1)}
@@ -801,7 +781,10 @@ export default function RiskRegisterPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
-                        {getStatusIcon(item.status)}
+                        {item.status === 'open' ? <AlertCircle className="h-4 w-4 text-red-500" /> :
+                         item.status === 'mitigated' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
+                         item.status === 'in-progress' ? <Clock className="h-4 w-4 text-yellow-500" /> :
+                         <AlertCircle className="h-4 w-4 text-gray-500" />}
                         <span className="ml-2">
                           {item.status.charAt(0).toUpperCase() +
                             item.status.slice(1)}
