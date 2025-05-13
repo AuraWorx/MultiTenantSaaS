@@ -1,5 +1,5 @@
 import { db } from "../server/db";
-import { frontierModels, frontierModelUpdates } from "@shared/schema";
+import { frontierModels, frontierModelUpdates } from "../shared/schema";
 import { eq } from "drizzle-orm";
 
 type ArticleData = {
@@ -51,7 +51,7 @@ async function main() {
         name: "Claude 3.5 Sonnet",
         provider: "Anthropic",
         description: "Claude 3.5 Sonnet from Anthropic - a powerful frontier model with enhanced reasoning capabilities.",
-        release_date: new Date("2025-03-01").toISOString(),
+        release_date: new Date("2025-03-01"),
         created_by_id: 1, // admin user
         organization_id: 1, // admin organization
       }).returning();
@@ -86,8 +86,8 @@ async function main() {
         description,
         update_type: updateType,
         source_url: article.url,
-        update_date: new Date().toISOString(), // Current date/time as update date
-        published_date: new Date(article.date).toISOString(), // Provided date as published date
+        update_date: new Date(), // Current date/time as update date
+        published_date: new Date(article.date), // Provided date as published date
       });
       
       console.log(`Added update: ${article.title} (${updateType})`);
