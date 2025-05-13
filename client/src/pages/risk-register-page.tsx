@@ -170,14 +170,21 @@ function RiskDetails({ riskId, onClose }: RiskDetailsProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm font-medium text-gray-500">Severity</h4>
-                <Badge variant="outline" className={getSeverityColor(riskItem.severity)}>
+                <Badge variant="outline" className={riskItem.severity === 'critical' ? 'text-red-600 bg-red-100 border-red-200' : 
+                    riskItem.severity === 'high' ? 'text-orange-600 bg-orange-100 border-orange-200' : 
+                    riskItem.severity === 'medium' ? 'text-yellow-600 bg-yellow-100 border-yellow-200' : 
+                    riskItem.severity === 'low' ? 'text-green-600 bg-green-100 border-green-200' : 
+                    'text-gray-600 bg-gray-100 border-gray-200'}>
                   {riskItem.severity}
                 </Badge>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-gray-500">Status</h4>
                 <div className="flex items-center">
-                  {getStatusIcon(riskItem.status)}
+                  {riskItem.status === 'open' ? <AlertCircle className="h-4 w-4 text-red-500" /> :
+                     riskItem.status === 'mitigated' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
+                     riskItem.status === 'in-progress' ? <Clock className="h-4 w-4 text-yellow-500" /> :
+                     <AlertCircle className="h-4 w-4 text-gray-500" />}
                   <span>{riskItem.status.replace('_', ' ')}</span>
                 </div>
               </div>
@@ -196,7 +203,7 @@ function RiskDetails({ riskId, onClose }: RiskDetailsProps) {
               <div>
                 <h4 className="text-sm font-medium text-gray-500">Category</h4>
                 <div className="flex items-center">
-                  {getCategoryIcon(riskItem.category)}
+                  {riskItem.category ? getCategoryIcon(riskItem.category) : null}
                   <span>{riskItem.category}</span>
                 </div>
               </div>
@@ -598,7 +605,7 @@ export default function RiskRegisterPage() {
       })
     : [];
 
-  const getSeverityColor = (severity: string) => {
+  function getSeverityColor(severity: string): string {
     switch (severity.toLowerCase()) {
       case "critical":
         return "text-red-600 bg-red-100 border-red-200";
@@ -613,7 +620,7 @@ export default function RiskRegisterPage() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  function getStatusIcon(status: string): JSX.Element {
     switch (status.toLowerCase()) {
       case "open":
         return <AlertCircle className="h-4 w-4 text-red-500" />;
