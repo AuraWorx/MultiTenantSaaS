@@ -504,6 +504,27 @@ export function FrontierModelAlerts() {
                 </div>
               </RadioGroup>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="alertFrequency" className="text-right">
+                Frequency
+              </Label>
+              <Select
+                onValueChange={(value) => setAlertFormData({...alertFormData, alert_frequency: value})}
+                defaultValue={alertFormData.alert_frequency}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Alert Frequency</SelectLabel>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button 

@@ -409,6 +409,7 @@ export const frontierModelAlerts = pgTable("frontier_model_alerts", {
   organization_id: integer("organization_id").references(() => organizations.id).notNull(),
   user_id: integer("user_id").references(() => users.id).notNull(),
   alert_type: text("alert_type").notNull(), // 'security', 'feature'
+  alert_frequency: text("alert_frequency").default('daily').notNull(), // 'daily', 'weekly', 'monthly'
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
   active: boolean("active").default(true),

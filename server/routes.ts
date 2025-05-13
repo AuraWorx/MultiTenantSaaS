@@ -2268,8 +2268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Prepare alert data with user and organization ID
       const alertData = {
         ...req.body,
-        userId: userId,
-        organizationId: orgId
+        user_id: userId,
+        organization_id: orgId
       };
       
       // Validate the combined data

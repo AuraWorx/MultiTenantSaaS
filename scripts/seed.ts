@@ -446,28 +446,31 @@ async function seed() {
     console.log('Creating model alerts...');
     await db.insert(frontierModelAlerts).values([
       {
-        userId: adminUser.id,
-        organizationId: adminOrg.id,
-        frontierModelId: gpt4.id,
-        alertFrequency: 'daily',
-        alertTypes: ['security', 'feature'],
-        createdAt: new Date()
+        user_id: adminUser.id,
+        organization_id: adminOrg.id,
+        frontier_model_id: gpt4.id,
+        name: 'GPT-4 Security & Feature Alerts',
+        alert_type: 'security',
+        alert_frequency: 'daily',
+        created_at: new Date()
       },
       {
-        userId: demoUser.id,
-        organizationId: auraWorx.id,
-        frontierModelId: claude3.id,
-        alertFrequency: 'weekly',
-        alertTypes: ['security', 'feature'],
-        createdAt: new Date()
+        user_id: demoUser.id,
+        organization_id: auraWorx.id,
+        frontier_model_id: claude3.id,
+        name: 'Claude 3 Security & Feature Alerts',
+        alert_type: 'feature',
+        alert_frequency: 'weekly',
+        created_at: new Date()
       },
       {
-        userId: demoUser.id,
-        organizationId: auraWorx.id,
-        frontierModelId: gpt4.id,
-        alertFrequency: 'daily',
-        alertTypes: ['security'],
-        createdAt: new Date()
+        user_id: demoUser.id,
+        organization_id: auraWorx.id,
+        frontier_model_id: gpt4.id,
+        name: 'GPT-4 Security Alerts',
+        alert_type: 'security',
+        alert_frequency: 'daily',
+        created_at: new Date()
       }
     ]);
     
