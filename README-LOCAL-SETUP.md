@@ -80,7 +80,9 @@ The seed script will populate your database with:
 - Roles (Administrator, User, Analyst, Viewer)
 - Users (admin_user, demo_user, viewer_user)
 - AI Systems (Customer Support Chatbot, Fraud Detection System, HR Candidate Screening, etc.)
-- Risk Items and Compliance Issues
+- Risk Items with enhanced data (severity, impact, likelihood, category)
+- Risk Mitigations for tracking mitigation strategies
+- Compliance Issues
 
 ## Running the Application
 
@@ -170,3 +172,27 @@ npm run db:push
 ```bash
 ./seed-db.sh
 ```
+
+### Recent Schema Updates
+
+The database schema has been enhanced with the following features:
+
+1. **Enhanced Risk Items**:
+   - Added impact field (low, medium, high)
+   - Added likelihood field (low, medium, high)
+   - Added category field (security, privacy, bias, etc.)
+   - Added systemDetails field for additional context
+
+2. **Risk Mitigations Table**:
+   - Tracks mitigation strategies for risk items
+   - Includes status tracking (planned, in-progress, completed, rejected)
+   - Stores mitigation notes and descriptions
+   - Links to risk items via foreign key
+
+After cloning or pulling the latest code, ensure you run:
+
+```bash
+npm run db:push && ./seed-db.sh
+```
+
+This will update your schema and seed the database with sample data that includes these enhanced fields.

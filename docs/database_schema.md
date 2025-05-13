@@ -51,11 +51,27 @@ Table: `risk_items`
 - `id`: Serial, Primary Key
 - `title`: Text, Risk name
 - `description`: Text
-- `status`: Text, Risk status
-- `severity`: Text
+- `status`: Text, Risk status (open, mitigated, closed)
+- `severity`: Text (low, medium, high, critical)
+- `impact`: Text (low, medium, high)
+- `likelihood`: Text (low, medium, high)
+- `category`: Text (security, privacy, bias, etc.)
+- `system_details`: Text, Additional system information
 - `ai_system_id`: Integer, Foreign Key to ai_systems.id
-- `owner_id`: Integer, Foreign Key to users.id
+- `created_by_id`: Integer, Foreign Key to users.id
 - `organization_id`: Integer, Foreign Key to organizations.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Risk Mitigations
+Table: `risk_mitigations`
+- `id`: Serial, Primary Key
+- `risk_item_id`: Integer, Foreign Key to risk_items.id
+- `description`: Text, Mitigation description
+- `status`: Text, Mitigation status (planned, in-progress, completed, rejected)
+- `notes`: Text, Optional additional notes
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
 - `created_at`: Timestamp with timezone
 - `updated_at`: Timestamp with timezone
 
@@ -138,6 +154,7 @@ Table: `bias_analysis_results`
 - One organization has many users
 - One organization has many AI systems
 - One organization has many risk items
+- One organization has many risk mitigations
 - One organization has many compliance issues
 - One organization has many GitHub scan configs
 - One organization has many bias analysis scans
@@ -154,6 +171,17 @@ Table: `bias_analysis_results`
 - One AI system is owned by one user
 - One AI system can have many risk items
 - One AI system can have many compliance issues
+
+### Risk Item Relations
+- One risk item belongs to one organization
+- One risk item can be associated with one AI system (or none)
+- One risk item is created by one user
+- One risk item can have many risk mitigations
+
+### Risk Mitigation Relations
+- One risk mitigation belongs to one risk item
+- One risk mitigation belongs to one organization
+- One risk mitigation is created by one user
 
 ### GitHub Scan Relations
 - One GitHub scan config belongs to one organization

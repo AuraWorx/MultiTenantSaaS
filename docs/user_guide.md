@@ -254,23 +254,28 @@ The Frontier Model Alerts feature provides notifications about newly deployed fr
 
 ### Risk Register
 
-The Risk Register maintains a comprehensive record of AI-related risks.
+The Risk Register maintains a comprehensive record of AI-related risks and mitigation strategies.
 
 **Key Features:**
-- Centralized view of all identified risks
-- Risk categorization and prioritization
-- Status tracking and updates
-- Assignment of risk owners
-- Mitigation planning and tracking
-- Risk reporting and dashboards
+- Centralized view of all identified risks with enhanced details
+- Risk categorization by type (security, privacy, bias, etc.)
+- Severity, impact, and likelihood assessment
+- Status tracking (open, mitigated, closed)
+- Risk mitigation planning and tracking
+- Detailed risk analysis with system information
+- Actions menu with Edit, Add Mitigation, and Delete functions
+- Consistent risk management across the organization
 
 **To use the Risk Register:**
 1. Navigate to Manage > Risk Register
 2. View all risks or filter by category, status, or severity
-3. Click on a risk to view details
-4. Update risk status and mitigation efforts
-5. Assign ownership and due dates
-6. Generate risk reports for stakeholders
+3. Click on a risk to view details including mitigation history
+4. Use the Actions dropdown to:
+   - Edit risk details (severity, impact, likelihood, category, etc.)
+   - Add a mitigation plan (accept, transfer, limit) with notes
+   - Delete the risk item (with confirmation)
+5. Monitor mitigation statuses (planned, in-progress, completed, rejected)
+6. Generate risk reports for stakeholders and compliance purposes
 
 ### Lifecycle Management
 
