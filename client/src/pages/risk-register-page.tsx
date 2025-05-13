@@ -1012,6 +1012,10 @@ export default function RiskRegisterPage() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<number | null>(null);
   const [isNewRiskDialogOpen, setIsNewRiskDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Query risk items with their latest mitigations
   const { data: riskItems, isLoading } = useQuery<EnrichedRiskItem[]>({
@@ -1270,7 +1274,10 @@ export default function RiskRegisterPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem
-                              onClick={() => setSelectedRiskId(item.id)}
+                              onClick={() => {
+                                setSelectedRiskId(item.id);
+                                setIsEditDialogOpen(true);
+                              }}
                             >
                               <PenLine className="h-4 w-4 mr-2" />
                               Edit Risk
@@ -1278,6 +1285,8 @@ export default function RiskRegisterPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedRiskId(item.id);
+                                // Open edit dialog with mitigation tab active
+                                setIsEditDialogOpen(true);
                               }}
                             >
                               <Shield className="h-4 w-4 mr-2" />
@@ -1287,7 +1296,8 @@ export default function RiskRegisterPage() {
                             <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => {
-                                // Delete functionality will be implemented later
+                                setSelectedRiskId(item.id);
+                                setIsDeleteConfirmOpen(true);
                                 toast({
                                   title: "Action not implemented",
                                   description: "Delete functionality coming soon",
