@@ -1,0 +1,109 @@
+scrape_model_updates_db.py
+"""
+Fetch model update links, published dates, and short summaries, then insert into Postgres.
+Stores one-line summaries to the `summary` column.
+Provides debug logs to stderr for troubleshooting per model.
+Usage:
+    pip install pandas feedparser psycopg2-binary
+    python scrape_model_updates_db.py --models models.csv \
+        --dbhost localhost --dbport 5432 --dbname updates \
+        --dbuser user --dbpass pass --days 7 --max 5
+"""
+import argparse
+import pandas as pd
+import feedparser
+import psycopg2
+from urllib.parse import quote_plus
+import datetime
+import time
+import re
+import sys
+
+
+def clean_summary(html_text):
+    # strip HTML tags and collapse to first sentence
+    text = re.sub('<[^<]+?>', '', html_text or '')
+    parts = text.strip().split('. ')
+    return (parts[0] + '.') if parts and parts[0] else text
+
+
+def scrape_model_updates(models_csv, days=1, max_results=5):
+    print(f"[DEBUG] Loading models from {models_csv}", file=sys.stderr)
+    df = pd.read_csv(models_csv)
+    models = df['model'].dropna().astype(str).tolist()
+    print(f"[DEBUG] Found models: {models}", file=sys.stderr)
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+    print(f"[DEBUG] Using cutoff: {cutoff.isoformat()}", file=sys.stderr)
+
+    results = []
+    for m in models:
+        print(f"[DEBUG] Processing model '{m}'...", file=sys.stderr)
+        model_count = 0
+        for category, phrase in [
+            ('security_incidents','security incident'),
+            ('feature_updates','feature update')
+        ]:
+            print(f"[DEBUG]  Category: {category}", file=sys.stderr)
+            rss_url = f"https://news.google.com/rss/search?q={quote_plus(m + ' ' + phrase)}"
+            print(f"[DEBUG]   Fetching RSS: {rss_url}", file=sys.stderr)
+            feed = feedparser.parse(rss_url)
+            print(f"[DEBUG]   Entries fetched: {len(feed.entries)}", file=sys.stderr)
+            count = 0
+            for e in feed.entries:
+                if not getattr(e, 'published_parsed', None):
+                    continue
+                published = datetime.datetime.fromtimestamp(
+                    time.mktime(e.published_parsed), tz=datetime.timezone.utc
+                )
+                if published < cutoff:
+                    continue
+                summary = clean_summary(getattr(e, 'summary', '') or getattr(e, 'description', ''))
+                results.append((m, category, e.link, summary, published))
+                count += 1
+                model_count += 1
+                if count >= max_results:
+                    break
+            print(f"[DEBUG]   Added {count} items for {m}/{category}", file=sys.stderr)
+        print(f"[DEBUG] Total items for model '{m}': {model_count}\n", file=sys.stderr)
+    return results
+
+
+def insert_into_db(records, host, port, dbname, user, password):
+    print(f"[DEBUG] Inserting {len(records)} records to DB", file=sys.stderr)
+    conn = psycopg2.connect(host=host, port=port, dbname=dbname,
+                            user=user, password=password)
+    cur = conn.cursor()
+    sql = (
+        "INSERT INTO model_updates_new (model, category, link, summary, published) "
+        "VALUES (%s, %s, %s, %s, %s) "
+        "ON CONFLICT (link) DO UPDATE SET summary = EXCLUDED.summary;"
+    )
+    cur.executemany(sql, records)
+    conn.commit()
+    print(f"[DEBUG] Commit successful", file=sys.stderr)
+    cur.close()
+    conn.close()
+
+
+def main():
+    p = argparse.ArgumentParser("Scrape and load frontier model updates into Postgres.")
+    p.add_argument('-m','--models', default='models.csv')
+    p.add_argument('--dbhost', required=True)
+    p.add_argument('--dbport', type=int, default=5432)
+    p.add_argument('--dbname', required=True)
+    p.add_argument('--dbuser', required=True)
+    p.add_argument('--dbpass', required=True)
+    p.add_argument('-d','--days', type=int, default=7)
+    p.add_argument('-n','--max', type=int, default=5)
+    args = p.parse_args()
+
+    records = scrape_model_updates(args.models, days=args.days, max_results=args.max)
+    if records:
+        insert_into_db(records, host=args.dbhost, port=args.dbport,
+                       dbname=args.dbname, user=args.dbuser, password=args.dbpass)
+        print(f"Inserted/Updated {len(records)} records.")
+    else:
+        print("No new records to insert.")
+
+if __name__ == '__main__':
+    main()
