@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TopNavbar } from "@/components/layout/top-navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -373,6 +373,395 @@ function RiskDetails({ riskId, onClose }: RiskDetailsProps) {
   );
 }
 
+// Edit risk form component
+function EditRiskForm({ riskId, onCancel }: { riskId: number; onCancel: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const { data: riskData, isLoading } = useQuery<RiskDetailsResponse>({
+    queryKey: ["/api/risk-items", riskId],
+    enabled: !!riskId,
+  });
+  
+  const form = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      severity: "medium",
+      impact: "medium",
+      likelihood: "medium",
+      category: "security",
+      systemDetails: "",
+      status: "open",
+      mitigation: "accept"
+    }
+  });
+  
+  // Set form data when risk data is loaded
+  useEffect(() => {
+    if (riskData?.riskItem) {
+      const { riskItem } = riskData;
+      form.reset({
+        title: riskItem.title,
+        description: riskItem.description || "",
+        severity: riskItem.severity,
+        impact: riskItem.impact || "medium",
+        likelihood: riskItem.likelihood || "medium",
+        category: riskItem.category || "security",
+        systemDetails: riskItem.systemDetails || "",
+        status: riskItem.status,
+        mitigation: "accept" // Default mitigation strategy
+      });
+    }
+  }, [riskData, form]);
+  
+  const updateRiskMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await apiRequest("PUT", `/api/risk-items/${riskId}`, values);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items", riskId] });
+      form.reset();
+      toast({
+        title: "Risk updated",
+        description: "The risk item has been updated successfully.",
+      });
+      onCancel();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update risk: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const deleteRiskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/risk-items/${riskId}`, {});
+      return res.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      toast({
+        title: "Risk deleted",
+        description: "The risk item and its mitigations have been deleted successfully.",
+      });
+      onCancel();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete risk: ${error.message}`,
+        variant: "destructive",
+      });
+      setIsDeleting(false);
+    }
+  });
+  
+  const onSubmit = (values: any) => {
+    // Extract mitigation strategy and handle it separately
+    const { mitigation, ...riskValues } = values;
+    
+    // If a mitigation strategy is provided, we'll create a mitigation entry as well
+    updateRiskMutation.mutate({
+      ...riskValues,
+      hasMitigation: !!mitigation
+    });
+    
+    // If mitigation is selected, create a mitigation record
+    if (mitigation && mitigation !== "none") {
+      const mitigationData = {
+        description: `Applied ${mitigation} mitigation strategy`,
+        status: "planned",
+        notes: `Risk will be ${mitigation}ed according to organization policy.`
+      };
+      
+      apiRequest("POST", `/api/risk-items/${riskId}/mitigations`, mitigationData)
+        .catch(err => {
+          toast({
+            title: "Warning",
+            description: `Risk updated but failed to add mitigation: ${err.message}`,
+            variant: "destructive",
+          });
+        });
+    }
+  };
+  
+  const handleDelete = () => {
+    if (isDeleting) {
+      deleteRiskMutation.mutate();
+    } else {
+      setIsDeleting(true);
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Risk title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Detailed description of the risk"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="severity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Severity</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select severity" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="mitigated">Mitigated</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="impact"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Impact</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select impact" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="likelihood"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Likelihood</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select likelihood" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Category</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="security">Security</SelectItem>
+                    <SelectItem value="privacy">Privacy</SelectItem>
+                    <SelectItem value="bias">Bias</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="mitigation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mitigation Strategy</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select mitigation strategy" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="accept">Accept</SelectItem>
+                    <SelectItem value="transfer">Transfer</SelectItem>
+                    <SelectItem value="limit">Limit</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <FormField
+          control={form.control}
+          name="systemDetails"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>System Details</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Details about affected systems"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <div className="flex justify-between">
+          <div>
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={handleDelete}
+              disabled={deleteRiskMutation.isPending}
+            >
+              {isDeleting ? "Confirm Delete" : "Delete Risk"}
+              {deleteRiskMutation.isPending && (
+                <div className="ml-2 animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+            </Button>
+          </div>
+          <div className="flex space-x-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              disabled={updateRiskMutation.isPending}
+            >
+              {updateRiskMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Form>
+  );
+}
+
 // New risk form component
 function NewRiskForm({ onCancel }: { onCancel: () => void }) {
   const { toast } = useToast();
@@ -387,14 +776,36 @@ function NewRiskForm({ onCancel }: { onCancel: () => void }) {
       likelihood: "medium",
       category: "security",
       systemDetails: "",
-      status: "open"
+      status: "open",
+      mitigation: "none"
     }
   });
   
   const createRiskMutation = useMutation({
     mutationFn: async (values: any) => {
-      const res = await apiRequest("POST", "/api/risk-items", values);
-      return await res.json();
+      // Extract mitigation strategy and handle it separately
+      const { mitigation, ...riskValues } = values;
+      
+      // Create the risk item first
+      const res = await apiRequest("POST", "/api/risk-items", {
+        ...riskValues,
+        hasMitigation: mitigation !== "none"
+      });
+      
+      const riskItem = await res.json();
+      
+      // If mitigation is selected, create a mitigation record
+      if (mitigation && mitigation !== "none" && riskItem && riskItem.id) {
+        const mitigationData = {
+          description: `Applied ${mitigation} mitigation strategy`,
+          status: "planned",
+          notes: `Risk will be ${mitigation}ed according to organization policy.`
+        };
+        
+        await apiRequest("POST", `/api/risk-items/${riskItem.id}/mitigations`, mitigationData);
+      }
+      
+      return riskItem;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
