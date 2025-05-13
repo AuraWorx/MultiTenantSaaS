@@ -18,6 +18,9 @@ import {
   githubScanSummaries,
   biasAnalysisScans,
   biasAnalysisResults,
+  frontierModelsList,
+  frontierModelsAlertsConfig,
+  frontierModelsAlerts,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
@@ -27,7 +30,10 @@ import {
   insertComplianceIssueSchema,
   insertGithubScanConfigSchema,
   insertBiasAnalysisScanSchema,
-  insertBiasAnalysisResultSchema
+  insertBiasAnalysisResultSchema,
+  insertFrontierModelSchema,
+  insertFrontierModelsAlertsConfigSchema,
+  insertFrontierModelsAlertsSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
 
@@ -1908,6 +1914,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const httpServer = createServer(app);
+
+  // Frontier Models endpoints
+  app.get('/api/frontier-models', isAuthenticated, async (req, res) => {
+    try {
+      const models = await db.select().from(frontierModelsList).orderBy(frontierModelsList.name);
+      res.json(models);
+    } catch (error) {
+      console.error('Error fetching frontier models:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier models' });
+    }
+  });
+
+  app.get('/api/frontier-models/alerts-config', isAuthenticated, async (req, res) => {
+    try {
+      const userOrgId = req.user.organization.id;
+      
+      const alertConfigs = await db.select({
+        id: frontierModelsAlertsConfig.id,
+        model_id: frontierModelsAlertsConfig.model_id,
+        category: frontierModelsAlertsConfig.category,
+        created_at: frontierModelsAlertsConfig.created_at,
+        modelName: frontierModelsList.name,
+        modelProvider: frontierModelsList.provider,
+      })
+      .from(frontierModelsAlertsConfig)
+      .innerJoin(
+        frontierModelsList, 
+        eq(frontierModelsAlertsConfig.model_id, frontierModelsList.id)
+      )
+      .where(eq(frontierModelsAlertsConfig.organization_id, userOrgId))
+      .orderBy(frontierModelsAlertsConfig.created_at);
+      
+      res.json(alertConfigs);
+    } catch (error) {
+      console.error('Error fetching frontier model alert configs:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier model alert configs' });
+    }
+  });
+
+  app.post('/api/frontier-models/alerts-config', isAuthenticated, async (req, res) => {
+    try {
+      const { model_id, category } = req.body;
+      const userOrgId = req.user.organization.id;
+      const userId = req.user.id;
+      
+      // Validate input
+      if (!model_id || !category) {
+        return res.status(400).json({ error: 'Model ID and category are required' });
+      }
+      
+      if (!['security', 'feature'].includes(category)) {
+        return res.status(400).json({ error: 'Category must be either "security" or "feature"' });
+      }
+      
+      // Check if config already exists
+      const existingConfig = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.model_id, model_id),
+            eq(frontierModelsAlertsConfig.category, category),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (existingConfig.length > 0) {
+        return res.status(409).json({ error: 'Alert config for this model and category already exists' });
+      }
+      
+      // Create new alert config
+      const [newConfig] = await db.insert(frontierModelsAlertsConfig)
+        .values({
+          model_id,
+          category,
+          organization_id: userOrgId,
+          created_by_id: userId
+        })
+        .returning();
+      
+      res.status(201).json(newConfig);
+    } catch (error) {
+      console.error('Error creating frontier model alert config:', error);
+      res.status(500).json({ error: 'Failed to create frontier model alert config' });
+    }
+  });
+
+  app.delete('/api/frontier-models/alerts-config/:id', isAuthenticated, async (req, res) => {
+    try {
+      const configId = parseInt(req.params.id);
+      const userOrgId = req.user.organization.id;
+      
+      if (isNaN(configId)) {
+        return res.status(400).json({ error: 'Invalid config ID' });
+      }
+      
+      // Check if config exists and belongs to user's organization
+      const config = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.id, configId),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: 'Alert config not found' });
+      }
+      
+      // Delete related alerts first
+      await db.delete(frontierModelsAlerts)
+        .where(eq(frontierModelsAlerts.alert_config_id, configId));
+      
+      // Delete the config
+      await db.delete(frontierModelsAlertsConfig)
+        .where(eq(frontierModelsAlertsConfig.id, configId));
+      
+      res.status(200).json({ message: 'Alert config deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting frontier model alert config:', error);
+      res.status(500).json({ error: 'Failed to delete frontier model alert config' });
+    }
+  });
+
+  app.get('/api/frontier-models/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const userOrgId = req.user.organization.id;
+      
+      const alerts = await db.select({
+        id: frontierModelsAlerts.id,
+        title: frontierModelsAlerts.title,
+        description: frontierModelsAlerts.description,
+        url: frontierModelsAlerts.url,
+        date_published: frontierModelsAlerts.date_published,
+        created_at: frontierModelsAlerts.created_at,
+        config_id: frontierModelsAlertsConfig.id,
+        category: frontierModelsAlertsConfig.category,
+        model_name: frontierModelsList.name,
+        model_provider: frontierModelsList.provider,
+      })
+      .from(frontierModelsAlerts)
+      .innerJoin(
+        frontierModelsAlertsConfig,
+        eq(frontierModelsAlerts.alert_config_id, frontierModelsAlertsConfig.id)
+      )
+      .innerJoin(
+        frontierModelsList,
+        eq(frontierModelsAlertsConfig.model_id, frontierModelsList.id)
+      )
+      .where(eq(frontierModelsAlerts.organization_id, userOrgId))
+      .orderBy(desc(frontierModelsAlerts.date_published));
+      
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching frontier model alerts:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier model alerts' });
+    }
+  });
+
+  app.post('/api/frontier-models/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const { alert_config_id, title, description, url, date_published } = req.body;
+      const userOrgId = req.user.organization.id;
+      
+      // Validate input
+      if (!alert_config_id || !title || !date_published) {
+        return res.status(400).json({ error: 'Alert config ID, title, and date published are required' });
+      }
+      
+      // Check if config exists and belongs to user's organization
+      const config = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.id, alert_config_id),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: 'Alert config not found' });
+      }
+      
+      // Create new alert
+      const [newAlert] = await db.insert(frontierModelsAlerts)
+        .values({
+          alert_config_id,
+          title,
+          description: description || null,
+          url: url || null,
+          date_published: new Date(date_published),
+          organization_id: userOrgId
+        })
+        .returning();
+      
+      res.status(201).json(newAlert);
+    } catch (error) {
+      console.error('Error creating frontier model alert:', error);
+      res.status(500).json({ error: 'Failed to create frontier model alert' });
+    }
+  });
+
+  app.delete('/api/frontier-models/alerts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const userOrgId = req.user.organization.id;
+      
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: 'Invalid alert ID' });
+      }
+      
+      // Check if alert exists and belongs to user's organization
+      const alert = await db.select()
+        .from(frontierModelsAlerts)
+        .where(
+          and(
+            eq(frontierModelsAlerts.id, alertId),
+            eq(frontierModelsAlerts.organization_id, userOrgId)
+          )
+        );
+      
+      if (alert.length === 0) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Delete the alert
+      await db.delete(frontierModelsAlerts)
+        .where(eq(frontierModelsAlerts.id, alertId));
+      
+      res.status(200).json({ message: 'Alert deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting frontier model alert:', error);
+      res.status(500).json({ error: 'Failed to delete frontier model alert' });
+    }
+  });
 
   return httpServer;
 }

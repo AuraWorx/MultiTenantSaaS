@@ -19,6 +19,7 @@ import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
 import RiskRegisterPage from "./pages/risk-register-page";
 import AdminPage from "./pages/admin-page";
+import FrontierModelsPage from "./pages/frontier-models-page";
 import { ReactNode } from "react";
 
 // Theme toggle button
