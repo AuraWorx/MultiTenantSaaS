@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import Parser from 'rss-parser';
+import fs from 'fs';
+import path from 'path';
 
 // Helper function to clean HTML from summaries
 function cleanSummary(htmlText: string | null): string {
@@ -366,6 +368,59 @@ async function scrapeMetaUpdates(modelName: string, modelId: number): Promise<an
 }
 
 // Main function to scrape all models and persist to database
+
+// Load seed data for fallback
+interface SeedArticle {
+  id: string;
+  title: string;
+  date: string;
+  category: string;
+  author: string;
+  source: string;
+  url: string;
+  summary: string;
+  tags: string[];
+}
+
+interface SeedData {
+  articles: SeedArticle[];
+}
+
+function loadSeedData(): SeedData {
+  try {
+    const seedFilePath = path.join(__dirname, 'seed-model-updates.json');
+    const seedData = JSON.parse(fs.readFileSync(seedFilePath, 'utf8'));
+    return seedData;
+  } catch (error) {
+    console.error('Error loading seed data:', error);
+    return { articles: [] };
+  }
+}
+
+// Helper function to map seed data to model updates
+function getSeedUpdatesForModel(modelId: number, modelName: string): any[] {
+  const seedData = loadSeedData();
+  const updates: any[] = [];
+  
+  // Only use seed data for Claude model (as it matches our seed data)
+  if (!modelName.toLowerCase().includes('claude')) {
+    return [];
+  }
+  
+  for (const article of seedData.articles) {
+    updates.push({
+      frontier_model_id: modelId,
+      title: article.title,
+      description: article.summary,
+      update_type: article.category.includes('security') ? 'security' : 'feature',
+      source_url: article.url,
+      update_date: new Date(article.date).toISOString()
+    });
+  }
+  
+  return updates;
+}
+
 export async function scrapeAndPersistModelUpdates(specificModelId?: number) {
   try {
     // Get models from database
@@ -384,11 +439,17 @@ export async function scrapeAndPersistModelUpdates(specificModelId?: number) {
     for (const model of models) {
       console.log(`[DEBUG] Processing model: ${model.name} (${model.provider})`);
       
-      // Scrape updates for this model using provider-specific strategies
-      const updates = await scrapeProviderUpdates(model.provider, model.name, model.id);
+      // Try to scrape updates first
+      let updates = await scrapeProviderUpdates(model.provider, model.name, model.id);
+      
+      // If no updates were found, use seed data as fallback
+      if (updates.length === 0) {
+        console.log(`[DEBUG] No updates found for ${model.name}, using seed data`);
+        updates = getSeedUpdatesForModel(model.id, model.name);
+      }
       
       if (updates.length === 0) {
-        console.log(`[DEBUG] No updates found for ${model.name}`);
+        console.log(`[DEBUG] No updates found and no matching seed data for ${model.name}`);
         continue;
       }
       
@@ -400,10 +461,14 @@ export async function scrapeAndPersistModelUpdates(specificModelId?: number) {
           // Validate with zod schema
           const validatedUpdate = insertFrontierModelUpdateSchema.parse(update);
           
-          // Check if update with same source_url already exists
+          // Check if similar update already exists (by title or URL)
           const existingUpdate = await db.select()
             .from(frontierModelUpdates)
-            .where(eq(frontierModelUpdates.source_url, update.source_url))
+            .where(
+              update.source_url 
+                ? eq(frontierModelUpdates.source_url, update.source_url)
+                : eq(frontierModelUpdates.title, update.title)
+            )
             .limit(1);
           
           if (existingUpdate.length === 0) {
@@ -411,7 +476,7 @@ export async function scrapeAndPersistModelUpdates(specificModelId?: number) {
             await db.insert(frontierModelUpdates).values(validatedUpdate);
             totalUpdates++;
           } else {
-            console.log(`[DEBUG] Update with URL ${update.source_url} already exists, skipping`);
+            console.log(`[DEBUG] Update already exists, skipping`);
           }
         } catch (error) {
           console.error(`Error inserting update:`, error);

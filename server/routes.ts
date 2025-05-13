@@ -2034,20 +2034,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // =================== Frontier Model Updates API Routes ===================
   
-  // Get all updates for a specific frontier model
-  app.get("/api/frontier-model-updates/:modelId", isAuthenticated, async (req, res) => {
+  // Get latest updates across all models for the dashboard widget
+  app.get("/api/frontier-model-updates/latest", isAuthenticated, async (req, res) => {
     try {
-      const modelId = parseInt(req.params.modelId);
+      // Get the organization ID from the authenticated user
+      const organizationId = req.user.organization.id;
       
-      const updates = await db.select()
-        .from(frontierModelUpdates)
-        .where(eq(frontierModelUpdates.frontier_model_id, modelId))
-        .orderBy(desc(frontierModelUpdates.update_date));
+      // Get all model IDs for this organization first
+      const orgModels = await db.select({
+        id: frontierModels.id
+      })
+      .from(frontierModels)
+      .where(eq(frontierModels.organization_id, organizationId));
       
-      res.json(updates);
+      const modelIds = orgModels.map(model => model.id);
+      
+      // If no models found, return empty array
+      if (modelIds.length === 0) {
+        return res.json([]);
+      }
+      
+      // First get the latest 10 security updates
+      const securityUpdates = await db.select({
+        id: frontierModelUpdates.id,
+        title: frontierModelUpdates.title,
+        description: frontierModelUpdates.description,
+        update_type: frontierModelUpdates.update_type,
+        source_url: frontierModelUpdates.source_url,
+        update_date: frontierModelUpdates.update_date,
+        frontier_model_id: frontierModelUpdates.frontier_model_id,
+        model: {
+          id: frontierModels.id,
+          name: frontierModels.name,
+          provider: frontierModels.provider
+        }
+      })
+      .from(frontierModelUpdates)
+      .innerJoin(frontierModels, eq(frontierModelUpdates.frontier_model_id, frontierModels.id))
+      .where(eq(frontierModelUpdates.update_type, 'security'))
+      .orderBy(desc(frontierModelUpdates.update_date))
+      .limit(5);
+      
+      // Then get the latest 10 feature updates
+      const featureUpdates = await db.select({
+        id: frontierModelUpdates.id,
+        title: frontierModelUpdates.title,
+        description: frontierModelUpdates.description,
+        update_type: frontierModelUpdates.update_type,
+        source_url: frontierModelUpdates.source_url,
+        update_date: frontierModelUpdates.update_date,
+        frontier_model_id: frontierModelUpdates.frontier_model_id,
+        model: {
+          id: frontierModels.id,
+          name: frontierModels.name,
+          provider: frontierModels.provider
+        }
+      })
+      .from(frontierModelUpdates)
+      .innerJoin(frontierModels, eq(frontierModelUpdates.frontier_model_id, frontierModels.id))
+      .where(eq(frontierModelUpdates.update_type, 'feature'))
+      .orderBy(desc(frontierModelUpdates.update_date))
+      .limit(5);
+      
+      // Combine and send both types of updates
+      const combinedUpdates = [...securityUpdates, ...featureUpdates];
+      res.json(combinedUpdates);
     } catch (error) {
-      console.error("Error fetching frontier model updates:", error);
-      res.status(500).json({ message: "Failed to fetch frontier model updates" });
+      console.error("Error fetching latest frontier model updates:", error);
+      res.status(500).json({ message: "Failed to fetch latest frontier model updates" });
     }
   });
 

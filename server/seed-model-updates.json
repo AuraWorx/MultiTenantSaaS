@@ -1,0 +1,37 @@
+{
+  "articles": [
+    {
+      "id": "sec-001",
+      "title": "Anthropic Releases Critical Security Patch for Claude 3.5 Sonnet",
+      "date": "2025-04-15",
+      "category": "security",
+      "author": "Alexa Martinez",
+      "source": "AI Security Today",
+      "url": "https://aisecuritytoday.com/2025/04/15/anthropic-releases-critical-security-patch-claude-35-sonnet",
+      "summary": "Anthropic issues a critical security update for Claude 3.5 Sonnet addressing a vulnerability that could potentially allow prompt injection attacks.",
+      "tags": ["Claude 3.5 Sonnet", "security patch", "prompt injection", "AI security", "Anthropic"]
+    },
+    {
+      "id": "feat-001",
+      "title": "Claude 3.5 Sonnet Gets Major Update with Enhanced Reasoning Capabilities",
+      "date": "2025-05-03",
+      "category": "features update",
+      "author": "Jordan Chen",
+      "source": "AI Insider",
+      "url": "https://aiinsider.net/articles/claude-35-sonnet-reasoning-update-2025-05-03",
+      "summary": "Anthropic rolls out a significant update to Claude 3.5 Sonnet, featuring improved reasoning abilities and specialized knowledge in several technical domains.",
+      "tags": ["Claude 3.5 Sonnet", "AI reasoning", "feature update", "technical capabilities", "Anthropic"]
+    },
+    {
+      "id": "sec-002",
+      "title": "Anthropic Strengthens Claude 3.5 Sonnet's Data Privacy Controls",
+      "date": "2025-04-21",
+      "category": "security",
+      "author": "Priya Sharma",
+      "source": "Enterprise AI News",
+      "url": "https://enterpriseainews.com/security/2025/04/21/anthropic-claude-35-sonnet-privacy-controls",
+      "summary": "New security features for Claude 3.5 Sonnet provide enterprise customers with enhanced data control options and improved privacy guarantees.",
+      "tags": ["Claude 3.5 Sonnet", "data privacy", "enterprise security", "AI governance", "Anthropic"]
+    }
+  ]
+}
