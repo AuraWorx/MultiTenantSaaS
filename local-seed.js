@@ -24,34 +24,59 @@ async function seed() {
 
     // Clear existing data
     console.log('Clearing existing data...');
-    await client.query('DELETE FROM compliance_issues');
-    await client.query('DELETE FROM risk_items');
-    await client.query('DELETE FROM ai_systems');
-    await client.query('DELETE FROM bias_analysis_results');
-    await client.query('DELETE FROM bias_analysis_scans');
-    await client.query('DELETE FROM github_scan_results');
-    await client.query('DELETE FROM github_scan_summaries');
-    await client.query('DELETE FROM github_scan_configs');
-    await client.query('DELETE FROM frontier_models_alerts');
-    await client.query('DELETE FROM frontier_models_alerts_config');
-    await client.query('DELETE FROM frontier_models_list');
-    await client.query('DELETE FROM users');
-    await client.query('DELETE FROM roles');
-    await client.query('DELETE FROM organizations');
+    
+    // Clear tables in order to respect foreign key constraints
+    try {
+      // First, clear dependent tables
+      await client.query('DELETE FROM compliance_issues');
+      await client.query('DELETE FROM risk_mitigations'); // Delete risk mitigations first (references risk_items)
+      await client.query('DELETE FROM risk_items');
+      await client.query('DELETE FROM ai_systems');
+      await client.query('DELETE FROM bias_analysis_results');
+      await client.query('DELETE FROM bias_analysis_scans');
+      await client.query('DELETE FROM github_scan_results');
+      await client.query('DELETE FROM github_scan_summaries');
+      await client.query('DELETE FROM github_scan_configs');
+      await client.query('DELETE FROM frontier_models_alerts');
+      await client.query('DELETE FROM frontier_models_alerts_config');
+      await client.query('DELETE FROM frontier_models_list');
+      await client.query('DELETE FROM users');
+      await client.query('DELETE FROM roles');
+      await client.query('DELETE FROM organizations');
+    } catch (error) {
+      console.log('Error during data clearing:', error.message);
+      // Try alternative: TRUNCATE with CASCADE
+      console.log('Trying TRUNCATE CASCADE as an alternative...');
+      await client.query('TRUNCATE organizations, roles, users, ai_systems, risk_items, risk_mitigations, compliance_issues, frontier_models_list, frontier_models_alerts_config, frontier_models_alerts, bias_analysis_scans, bias_analysis_results, github_scan_configs, github_scan_results, github_scan_summaries CASCADE');
+    }
 
     // Reset sequences
     console.log('Resetting sequences...');
-    await client.query('ALTER SEQUENCE organizations_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE roles_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE users_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE ai_systems_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE risk_items_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE compliance_issues_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE github_scan_configs_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE github_scan_results_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE github_scan_summaries_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE bias_analysis_scans_id_seq RESTART WITH 1');
-    await client.query('ALTER SEQUENCE bias_analysis_results_id_seq RESTART WITH 1');
+    try {
+      await client.query('ALTER SEQUENCE organizations_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE roles_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE users_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE ai_systems_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE risk_items_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE risk_mitigations_id_seq RESTART WITH 1'); // Add risk_mitigations sequence reset
+      await client.query('ALTER SEQUENCE compliance_issues_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE github_scan_configs_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE github_scan_results_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE github_scan_summaries_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE bias_analysis_scans_id_seq RESTART WITH 1');
+      await client.query('ALTER SEQUENCE bias_analysis_results_id_seq RESTART WITH 1');
+      
+      // Try to reset frontier models sequences
+      try {
+        await client.query('ALTER SEQUENCE frontier_models_list_id_seq RESTART WITH 1');
+        await client.query('ALTER SEQUENCE frontier_models_alerts_config_id_seq RESTART WITH 1');
+        await client.query('ALTER SEQUENCE frontier_models_alerts_id_seq RESTART WITH 1');
+      } catch (error) {
+        console.log('Note: Frontier models sequences not available yet');
+      }
+    } catch (error) {
+      console.log('Error resetting some sequences:', error.message);
+    }
 
     // Create roles
     console.log('Creating roles...');

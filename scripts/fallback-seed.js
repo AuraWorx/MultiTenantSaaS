@@ -3,8 +3,10 @@
  * This script works with both old and new schema versions
  */
 
-const { Client } = require('pg');
-const crypto = require('crypto');
+import pg from 'pg';
+import crypto from 'crypto';
+
+const { Client } = pg;
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');

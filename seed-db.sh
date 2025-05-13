@@ -42,7 +42,7 @@ if [ -z "$REPL_ID" ]; then
     echo "Standard seeder ran successfully."
   else
     echo "Standard seeder failed, trying fallback seeder..."
-    node scripts/fallback-seed.js
+    node --experimental-modules scripts/fallback-seed.js
   fi
 else
   echo "Running in Replit environment, using tsx with neon client..."
