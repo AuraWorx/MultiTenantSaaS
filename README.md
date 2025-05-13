@@ -31,6 +31,7 @@ Detailed documentation is available in the `docs` directory:
 - [Frontend Architecture](docs/frontend_architecture.md) - Frontend component organization and patterns
 - [Development Guide](docs/development_guide.md) - Guide for local development setup
 - [User Guide](docs/user_guide.md) - End-user documentation for using the platform
+- [Frontier Models Guide](docs/frontier_models_guide.md) - Detailed guide on using the Frontier Models alerts feature
 - [Security Guide](docs/security.md) - Security features and best practices
 - [Roadmap](docs/roadmap.md) - Planned features and future enhancements
 
@@ -66,7 +67,7 @@ Assess and analyze AI systems for risks and compliance:
 
 Control and govern AI systems throughout their lifecycle:
 
-- **Frontier Model Alerts**: Receive alerts about newly deployed frontier models
+- **Frontier Model Alerts**: Receive and configure alerts about new frontier AI models and security updates with categorized notifications (security, feature, compliance, ethics)
 - **Risk Register**: Maintain a comprehensive risk register for AI systems
 - **Lifecycle Management**: Manage the complete lifecycle of AI systems
 
