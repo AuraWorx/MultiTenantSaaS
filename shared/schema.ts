@@ -59,10 +59,32 @@ export const riskItems = pgTable("risk_items", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   severity: text("severity").notNull(), // low, medium, high, critical
-  status: text("status").notNull(), // open, in_progress, resolved
+  impact: text("impact").default("medium"), // low, medium, high
+  likelihood: text("likelihood").default("medium"), // low, medium, high
+  category: text("category").default("security"), // security, privacy, bias
+  status: text("status").notNull(), // open, mitigated, closed
+  systemDetails: text("system_details"),
   aiSystemId: integer("ai_system_id")
-    .references(() => aiSystems.id)
+    .references(() => aiSystems.id),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
     .notNull(),
+  createdById: integer("created_by_id")
+    .references(() => users.id)
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Risk Mitigations
+export const riskMitigations = pgTable("risk_mitigations", {
+  id: serial("id").primaryKey(),
+  riskItemId: integer("risk_item_id")
+    .references(() => riskItems.id)
+    .notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull(), // planned, in-progress, completed, rejected
+  notes: text("notes"),
   organizationId: integer("organization_id")
     .references(() => organizations.id)
     .notNull(),
@@ -98,6 +120,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   aiSystems: many(aiSystems),
   riskItems: many(riskItems),
+  riskMitigations: many(riskMitigations),
   complianceIssues: many(complianceIssues),
 }));
 
@@ -125,10 +148,11 @@ export const aiSystemsRelations = relations(aiSystems, ({ one, many }) => ({
   complianceIssues: many(complianceIssues),
 }));
 
-export const riskItemsRelations = relations(riskItems, ({ one }) => ({
+export const riskItemsRelations = relations(riskItems, ({ one, many }) => ({
   aiSystem: one(aiSystems, {
     fields: [riskItems.aiSystemId],
     references: [aiSystems.id],
+    relationName: 'riskItem_aiSystem',
   }),
   organization: one(organizations, {
     fields: [riskItems.organizationId],
@@ -136,6 +160,22 @@ export const riskItemsRelations = relations(riskItems, ({ one }) => ({
   }),
   createdBy: one(users, {
     fields: [riskItems.createdById],
+    references: [users.id],
+  }),
+  mitigations: many(riskMitigations),
+}));
+
+export const riskMitigationsRelations = relations(riskMitigations, ({ one }) => ({
+  riskItem: one(riskItems, {
+    fields: [riskMitigations.riskItemId],
+    references: [riskItems.id],
+  }),
+  organization: one(organizations, {
+    fields: [riskMitigations.organizationId],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [riskMitigations.createdById],
     references: [users.id],
   }),
 }));
@@ -182,6 +222,12 @@ export const insertRiskItemSchema = createInsertSchema(riskItems).omit({
   updatedAt: true,
 });
 
+export const insertRiskMitigationSchema = createInsertSchema(riskMitigations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertComplianceIssueSchema = createInsertSchema(complianceIssues).omit({
   id: true,
   createdAt: true,
@@ -203,6 +249,9 @@ export type InsertAiSystem = z.infer<typeof insertAiSystemSchema>;
 
 export type RiskItem = typeof riskItems.$inferSelect;
 export type InsertRiskItem = z.infer<typeof insertRiskItemSchema>;
+
+export type RiskMitigation = typeof riskMitigations.$inferSelect;
+export type InsertRiskMitigation = z.infer<typeof insertRiskMitigationSchema>;
 
 export type ComplianceIssue = typeof complianceIssues.$inferSelect;
 export type InsertComplianceIssue = z.infer<typeof insertComplianceIssueSchema>;

@@ -1152,6 +1152,266 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Get a specific risk item with its mitigations
+  app.get("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the risk item
+      const [riskItem] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!riskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Get the mitigations for this risk item
+      const mitigations = await db
+        .select()
+        .from(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .orderBy(desc(riskMitigations.createdAt));
+      
+      // Return both the risk item and its mitigations
+      res.json({
+        riskItem,
+        mitigations
+      });
+    } catch (error) {
+      console.error("Error fetching risk item details:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk item details", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Create a new risk item
+  app.post("/api/risk-items", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Create the risk item
+      const [newRiskItem] = await db
+        .insert(riskItems)
+        .values({
+          ...req.body,
+          organizationId,
+          createdById: userId,
+        })
+        .returning();
+      
+      res.status(201).json(newRiskItem);
+    } catch (error) {
+      console.error("Error creating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to create risk item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update a risk item
+  app.patch("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Update the risk item
+      const [updatedRiskItem] = await db
+        .update(riskItems)
+        .set({
+          ...req.body,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ))
+        .returning();
+      
+      if (!updatedRiskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      res.json(updatedRiskItem);
+    } catch (error) {
+      console.error("Error updating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Risk Mitigations API Endpoints
+  
+  // Get all mitigations for a risk item
+  app.get("/api/risk-items/:riskId/mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.riskId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      const mitigations = await db
+        .select()
+        .from(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .orderBy(desc(riskMitigations.createdAt));
+      
+      res.json(mitigations);
+    } catch (error) {
+      console.error("Error fetching risk mitigations:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk mitigations", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get all mitigations across all risks
+  app.get("/api/risk-mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get mitigations with associated risk item information
+      const mitigations = await db.query.riskMitigations.findMany({
+        where: eq(riskMitigations.organizationId, organizationId),
+        with: {
+          riskItem: true,
+          createdBy: {
+            columns: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true
+            }
+          }
+        },
+        orderBy: [desc(riskMitigations.createdAt)]
+      });
+      
+      res.json(mitigations);
+    } catch (error) {
+      console.error("Error fetching all risk mitigations:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch all risk mitigations", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Add a mitigation to a risk item
+  app.post("/api/risk-items/:riskId/mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.riskId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Check if risk item exists and belongs to the organization
+      const [riskItem] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!riskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Create the mitigation
+      const [newMitigation] = await db
+        .insert(riskMitigations)
+        .values({
+          ...req.body,
+          riskItemId: riskId,
+          organizationId,
+          createdById: userId
+        })
+        .returning();
+      
+      // If status is included in the mitigation, update the risk item status accordingly
+      if (req.body.status === 'completed') {
+        await db
+          .update(riskItems)
+          .set({ status: 'mitigated', updatedAt: new Date() })
+          .where(eq(riskItems.id, riskId));
+      }
+      
+      res.status(201).json(newMitigation);
+    } catch (error) {
+      console.error("Error creating risk mitigation:", error);
+      res.status(500).json({ 
+        message: "Failed to create risk mitigation", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update a mitigation
+  app.patch("/api/risk-mitigations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const mitigationId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Update the mitigation
+      const [updatedMitigation] = await db
+        .update(riskMitigations)
+        .set({
+          ...req.body,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(riskMitigations.id, mitigationId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .returning();
+      
+      if (!updatedMitigation) {
+        return res.status(404).json({ message: "Mitigation not found" });
+      }
+      
+      // If status is updated to 'completed', also update the risk item status
+      if (req.body.status === 'completed') {
+        await db
+          .update(riskItems)
+          .set({ status: 'mitigated', updatedAt: new Date() })
+          .where(eq(riskItems.id, updatedMitigation.riskItemId));
+      }
+      
+      res.json(updatedMitigation);
+    } catch (error) {
+      console.error("Error updating risk mitigation:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk mitigation", 
+        error: error.message 
+      });
+    }
+  });
   
   // Bias Analysis API Endpoints
   
