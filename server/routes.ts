@@ -1657,7 +1657,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get risk items summary for risk assessment chart
   app.get("/api/risk-items/summary", isAuthenticated, async (req, res) => {
     try {
-      const organizationId = req.user?.organization?.[0] || 1;
+      // Fix: Properly get organizationId from the user object
+      const organizationId = req.user?.organization?.id || 1;
       
       // Get total risks count
       const totalRisksResult = await db.select({ count: sql`count(*)` })
