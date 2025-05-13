@@ -27,6 +27,17 @@ import { Badge } from "@/components/ui/badge";
 import { RiskItem, RiskMitigation } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+// Type definition for the enriched risk item
+interface EnrichedRiskItem extends RiskItem {
+  latestMitigation: RiskMitigation | null;
+}
+
+// Type definition for the risk details response
+interface RiskDetailsResponse {
+  riskItem: RiskItem;
+  mitigations: RiskMitigation[];
+}
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -61,7 +72,7 @@ function RiskDetails({ riskId, onClose }: RiskDetailsProps) {
   const queryClient = useQueryClient();
   const [isAddingMitigation, setIsAddingMitigation] = useState(false);
   
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<RiskDetailsResponse>({
     queryKey: ["/api/risk-items", riskId],
     enabled: !!riskId,
   });
@@ -573,8 +584,8 @@ export default function RiskRegisterPage() {
   const [selectedRiskId, setSelectedRiskId] = useState<number | null>(null);
   const [isNewRiskDialogOpen, setIsNewRiskDialogOpen] = useState(false);
 
-  // Query risk items
-  const { data: riskItems, isLoading } = useQuery<RiskItem[]>({
+  // Query risk items with their latest mitigations
+  const { data: riskItems, isLoading } = useQuery<EnrichedRiskItem[]>({
     queryKey: ["/api/risk-items"],
   });
 
@@ -751,6 +762,7 @@ export default function RiskRegisterPage() {
                   <TableHead>Severity</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Mitigation Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -788,6 +800,26 @@ export default function RiskRegisterPage() {
                             item.status.slice(1)}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.latestMitigation ? (
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            item.latestMitigation.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                            item.latestMitigation.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
+                            item.latestMitigation.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }
+                        >
+                          {item.latestMitigation.status.replace('-', ' ').charAt(0).toUpperCase() + 
+                            item.latestMitigation.status.replace('-', ' ').slice(1)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                          No mitigation
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {new Date(item.createdAt).toLocaleDateString()}

@@ -1132,18 +1132,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Risk Register API Endpoints
   
-  // Get all risk items for the organization
+  // Get all risk items for the organization with their latest mitigation
   app.get("/api/risk-items", isAuthenticated, async (req, res) => {
     try {
       const organizationId = req.user?.organization?.[0] || 1;
       
+      // Get all risk items
       const items = await db
         .select()
         .from(riskItems)
         .where(eq(riskItems.organizationId, organizationId))
         .orderBy(desc(riskItems.createdAt));
       
-      res.json(items);
+      // For each risk item, get the latest mitigation
+      const enrichedItems = await Promise.all(items.map(async (item) => {
+        const latestMitigations = await db.query.riskMitigations.findMany({
+          where: and(
+            eq(riskMitigations.riskItemId, item.id),
+            eq(riskMitigations.organizationId, organizationId)
+          ),
+          orderBy: desc(riskMitigations.createdAt),
+          limit: 1
+        });
+        
+        const latestMitigation = latestMitigations.length > 0 ? latestMitigations[0] : null;
+        
+        return {
+          ...item,
+          latestMitigation
+        };
+      }));
+      
+      res.json(enrichedItems);
     } catch (error) {
       console.error("Error fetching risk items:", error);
       res.status(500).json({ 
