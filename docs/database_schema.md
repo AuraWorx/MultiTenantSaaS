@@ -193,6 +193,50 @@ Table: `bias_analysis_results`
 - One bias analysis scan is created by one user
 - One bias analysis scan can have many results
 
+## Frontier Models Alerts
+
+### Frontier Models List
+Table: `frontier_models_list`
+- `id`: Serial, Primary Key
+- `model_id`: Text, Unique model identifier
+- `name`: Text, Model name
+- `provider`: Text, Provider name (OpenAI, Anthropic, etc.)
+- `release_date`: Timestamp with timezone, Nullable
+- `description`: Text, Nullable
+- `capabilities`: Text array, Model capabilities
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Frontier Models Alerts Config
+Table: `frontier_models_alerts_config`
+- `id`: Serial, Primary Key
+- `model_id`: Integer, Foreign Key to frontier_models_list.id
+- `category`: Text, Alert category (security, feature, etc.)
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Frontier Models Alerts
+Table: `frontier_models_alerts`
+- `id`: Serial, Primary Key
+- `alert_config_id`: Integer, Foreign Key to frontier_models_alerts_config.id
+- `title`: Text, Alert title
+- `description`: Text, Nullable
+- `url`: Text, Nullable, URL to alert details
+- `date_published`: Timestamp with timezone
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_at`: Timestamp with timezone
+
+## Frontier Models Relations
+- One frontier model can have many alert configurations
+- One alert configuration belongs to one frontier model
+- One alert configuration belongs to one organization
+- One alert configuration is created by one user
+- One alert configuration can have many alerts
+- One alert belongs to one alert configuration
+- One alert belongs to one organization
+
 ## Schema Creation and Updates
 
 The schema is maintained in the `shared/schema.ts` file using Drizzle ORM. To apply schema changes:
