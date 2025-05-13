@@ -22,6 +22,9 @@ import {
   Lock,
   BarChart2,
   PanelRight,
+  MoreHorizontal,
+  PenLine,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { RiskItem, RiskMitigation } from "@shared/schema";
@@ -40,6 +43,14 @@ interface RiskDetailsResponse {
 }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Form,
   FormControl,
@@ -815,28 +826,69 @@ export default function RiskRegisterPage() {
                       {new Date(item.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => setSelectedRiskId(item.id)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" /> View Details
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Risk Details</DialogTitle>
-                          </DialogHeader>
-                          {selectedRiskId && (
-                            <RiskDetails 
-                              riskId={selectedRiskId} 
-                              onClose={() => setSelectedRiskId(null)} 
-                            />
-                          )}
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setSelectedRiskId(item.id)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" /> View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Risk Details</DialogTitle>
+                            </DialogHeader>
+                            {selectedRiskId && (
+                              <RiskDetails 
+                                riskId={selectedRiskId} 
+                                onClose={() => setSelectedRiskId(null)} 
+                              />
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => setSelectedRiskId(item.id)}
+                            >
+                              <PenLine className="h-4 w-4 mr-2" />
+                              Edit Risk
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedRiskId(item.id);
+                              }}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Add Mitigation
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => {
+                                // Delete functionality will be implemented later
+                                toast({
+                                  title: "Action not implemented",
+                                  description: "Delete functionality coming soon",
+                                });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
