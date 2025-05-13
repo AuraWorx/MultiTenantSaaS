@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, AlertCircle, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'wouter';
+import { useLocation } from 'wouter';
 
 // This component uses the same data format as the full Frontier Models Alerts component
 const mockAlerts = [
@@ -27,7 +27,7 @@ const mockAlerts = [
 ];
 
 export function FrontierModelsWidget() {
-  const [, navigate] = useNavigate();
+  const [, setLocation] = useLocation();
 
   // Helper function to format dates
   const formatDate = (dateString: string) => {
@@ -55,7 +55,7 @@ export function FrontierModelsWidget() {
   };
 
   const handleViewAllClick = () => {
-    navigate('/manage');
+    setLocation('/manage');
   };
 
   return (
