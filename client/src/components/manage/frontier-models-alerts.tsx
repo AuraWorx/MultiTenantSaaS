@@ -4,10 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, AlertCircle, BookOpen, PlusCircle, Trash2 } from "lucide-react";
+import { Sparkles, AlertCircle, BookOpen, PlusCircle, Trash2, X } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
 import { FrontierModel, FrontierModelsAlertsConfig, FrontierModelsAlert } from "@shared/schema";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type AlertsData = {
   alertConfigs: (FrontierModelsAlertsConfig & { 
@@ -43,9 +48,39 @@ const mockAlerts = [
   }
 ];
 
+// Available frontier models in the system
+const availableModels = [
+  { id: 1, name: "GPT-4o", provider: "OpenAI", modelId: "gpt-4o" },
+  { id: 2, name: "GPT-4 Turbo", provider: "OpenAI", modelId: "gpt-4-turbo" },
+  { id: 3, name: "Claude 3 Opus", provider: "Anthropic", modelId: "claude-3-opus" },
+  { id: 4, name: "Claude Sonnet 3.7", provider: "Anthropic", modelId: "claude-3.7-sonnet" },
+  { id: 5, name: "Gemini 1.5 Pro", provider: "Google", modelId: "gemini-1.5-pro" },
+  { id: 6, name: "Gemini 1.0 Ultra", provider: "Google", modelId: "gemini-1.0-ultra" },
+];
+
+// Available categories for alerts
+const alertCategories = ["Security", "Feature", "Compliance", "Performance", "Ethics"];
+
 export function FrontierModelsAlerts() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("alerts");
+  const [addAlertOpen, setAddAlertOpen] = useState(false);
+  const [addConfigOpen, setAddConfigOpen] = useState(false);
+  
+  // Form state for new alert
+  const [newAlert, setNewAlert] = useState({
+    title: "",
+    model_name: "",
+    category: "",
+    url: "",
+    description: "",
+  });
+
+  // Form state for new config
+  const [newConfig, setNewConfig] = useState({
+    model_id: "",
+    category: "",
+  });
 
   const { 
     data, 
@@ -77,6 +112,145 @@ export function FrontierModelsAlerts() {
       });
     },
   });
+
+  const addAlertMutation = useMutation({
+    mutationFn: async (alertData: typeof newAlert) => {
+      return await apiRequest("POST", "/api/frontier-models/alerts", alertData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frontier-models"] });
+      setAddAlertOpen(false);
+      setNewAlert({
+        title: "",
+        model_name: "",
+        category: "",
+        url: "",
+        description: "",
+      });
+      toast({
+        title: "Alert added",
+        description: "Your alert has been added successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error adding alert",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addConfigMutation = useMutation({
+    mutationFn: async (configData: typeof newConfig) => {
+      return await apiRequest("POST", "/api/frontier-models/configs", configData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frontier-models"] });
+      setAddConfigOpen(false);
+      setNewConfig({
+        model_id: "",
+        category: "",
+      });
+      toast({
+        title: "Configuration added",
+        description: "Your alert configuration has been added successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error adding configuration",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Adding a new alert (mock implementation)
+  const handleAddAlert = () => {
+    // Validate form
+    if (!newAlert.title || !newAlert.model_name || !newAlert.category || !newAlert.url) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill out all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Instead of actual API call, add to mock data
+    const newMockAlert = {
+      id: mockAlerts.length + 1,
+      ...newAlert,
+      datePublished: new Date().toISOString().split('T')[0]
+    };
+
+    // Add to mock data
+    mockAlerts.push(newMockAlert);
+    
+    // Close dialog and reset form
+    setAddAlertOpen(false);
+    setNewAlert({
+      title: "",
+      model_name: "",
+      category: "",
+      url: "",
+      description: "",
+    });
+    
+    toast({
+      title: "Alert added",
+      description: "Your alert has been added successfully",
+    });
+  };
+
+  // Adding a new config (mock implementation)
+  const handleAddConfig = () => {
+    if (!newConfig.model_id || !newConfig.category) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill out all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const selectedModel = availableModels.find(model => model.modelId === newConfig.model_id);
+    if (!selectedModel) {
+      toast({
+        title: "Invalid model",
+        description: "Please select a valid model",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Mock implementation - simulate adding a new config
+    const newMockAlert = {
+      id: mockAlerts.length + 1,
+      model_name: selectedModel.name,
+      category: newConfig.category,
+      url: "#",
+      title: `${selectedModel.name} ${newConfig.category} Alert`,
+      description: `Monitoring ${newConfig.category.toLowerCase()} updates for ${selectedModel.name}`,
+      datePublished: new Date().toISOString().split('T')[0]
+    };
+
+    // Add to mock data
+    mockAlerts.push(newMockAlert);
+    
+    // Close dialog and reset form
+    setAddConfigOpen(false);
+    setNewConfig({
+      model_id: "",
+      category: "",
+    });
+    
+    toast({
+      title: "Configuration added",
+      description: "Your alert configuration has been added successfully",
+    });
+  };
 
   // Use mock data instead of loading state
   if (false && isLoading) {
@@ -112,6 +286,12 @@ export function FrontierModelsAlerts() {
   const getCategoryBadge = (category: string) => {
     if (category.toLowerCase() === 'security') {
       return <Badge variant="destructive">{category}</Badge>;
+    } else if (category.toLowerCase() === 'compliance') {
+      return <Badge variant="outline" className="bg-orange-100 text-orange-800 hover:bg-orange-100">{category}</Badge>;
+    } else if (category.toLowerCase() === 'ethics') {
+      return <Badge variant="outline" className="bg-purple-100 text-purple-800 hover:bg-purple-100">{category}</Badge>;
+    } else if (category.toLowerCase() === 'performance') {
+      return <Badge variant="outline" className="bg-blue-100 text-blue-800 hover:bg-blue-100">{category}</Badge>;
     } else {
       return <Badge variant="default">{category}</Badge>;
     }
@@ -134,10 +314,118 @@ export function FrontierModelsAlerts() {
         <TabsContent value="alerts" className="space-y-4">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold">Recent Frontier Model Alerts</h3>
-            <Button variant="outline" disabled>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Alert
-            </Button>
+            <Dialog open={addAlertOpen} onOpenChange={setAddAlertOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Alert
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center">
+                    <Sparkles className="mr-2 h-5 w-5 text-primary" />
+                    Add New Frontier Model Alert
+                  </DialogTitle>
+                  <DialogDescription>
+                    Create a new alert for a frontier model update or announcement.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="title" className="text-right">
+                      Title
+                    </Label>
+                    <Input
+                      id="title"
+                      value={newAlert.title}
+                      onChange={(e) => setNewAlert({...newAlert, title: e.target.value})}
+                      placeholder="Alert title"
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="model" className="text-right">
+                      Model
+                    </Label>
+                    <Select
+                      value={newAlert.model_name}
+                      onValueChange={(value) => setNewAlert({...newAlert, model_name: value})}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((model) => (
+                          <SelectItem key={model.id} value={model.name}>
+                            {model.name} ({model.provider})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="category" className="text-right">
+                      Category
+                    </Label>
+                    <Select
+                      value={newAlert.category}
+                      onValueChange={(value) => setNewAlert({...newAlert, category: value})}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {alertCategories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="url" className="text-right">
+                      URL
+                    </Label>
+                    <Input
+                      id="url"
+                      value={newAlert.url}
+                      onChange={(e) => setNewAlert({...newAlert, url: e.target.value})}
+                      placeholder="https://example.com/announcement"
+                      className="col-span-3"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="description" className="text-right align-top pt-2">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={newAlert.description}
+                      onChange={(e) => setNewAlert({...newAlert, description: e.target.value})}
+                      placeholder="Brief description of the alert"
+                      className="col-span-3"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setAddAlertOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    onClick={handleAddAlert}
+                  >
+                    Add Alert
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {mockAlerts && mockAlerts.length > 0 ? (
@@ -161,7 +449,7 @@ export function FrontierModelsAlerts() {
                   <CardContent>
                     <p className="text-gray-700">{alert.description}</p>
                     <div className="flex items-center mt-4 space-x-4">
-                      <span className="text-sm text-gray-500">Provider: {alert.model_name.includes("GPT") ? "OpenAI" : "Anthropic"}</span>
+                      <span className="text-sm text-gray-500">Provider: {alert.model_name.includes("GPT") ? "OpenAI" : alert.model_name.includes("Claude") ? "Anthropic" : "Google"}</span>
                       {getCategoryBadge(alert.category)}
                     </div>
                   </CardContent>
@@ -196,10 +484,81 @@ export function FrontierModelsAlerts() {
         <TabsContent value="configs" className="space-y-4">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold">Alert Configurations</h3>
-            <Button variant="outline" disabled>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Configuration
-            </Button>
+            <Dialog open={addConfigOpen} onOpenChange={setAddConfigOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  New Configuration
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center">
+                    <Sparkles className="mr-2 h-5 w-5 text-primary" />
+                    Create Alert Configuration
+                  </DialogTitle>
+                  <DialogDescription>
+                    Set up automatic alerts for a specific frontier model.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="model-id" className="text-right">
+                      Model
+                    </Label>
+                    <Select
+                      value={newConfig.model_id}
+                      onValueChange={(value) => setNewConfig({...newConfig, model_id: value})}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableModels.map((model) => (
+                          <SelectItem key={model.id} value={model.modelId}>
+                            {model.name} ({model.provider})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="category" className="text-right">
+                      Alert Type
+                    </Label>
+                    <Select
+                      value={newConfig.category}
+                      onValueChange={(value) => setNewConfig({...newConfig, category: value})}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select alert type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {alertCategories.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setAddConfigOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    onClick={handleAddConfig}
+                  >
+                    Create Configuration
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -211,7 +570,7 @@ export function FrontierModelsAlerts() {
                     {getCategoryBadge(alert.category)}
                   </div>
                   <CardDescription>
-                    Provider: {alert.model_name.includes("GPT") ? "OpenAI" : "Anthropic"}
+                    Provider: {alert.model_name.includes("GPT") ? "OpenAI" : alert.model_name.includes("Claude") ? "Anthropic" : "Google"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -219,7 +578,7 @@ export function FrontierModelsAlerts() {
                     Monitoring {alert.category.toLowerCase()} updates for {alert.model_name}
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Model ID: {alert.model_name.toLowerCase().replace(" ", "-")}
+                    Model ID: {alert.model_name.toLowerCase().replace(/\s+/g, "-")}
                   </p>
                 </CardContent>
                 <CardFooter className="flex justify-between">
@@ -228,8 +587,20 @@ export function FrontierModelsAlerts() {
                     variant="ghost" 
                     size="sm"
                     className="text-red-500 hover:text-red-700"
-                    onClick={() => deleteAlertConfigMutation.mutate(alert.id)}
-                    disabled={deleteAlertConfigMutation.isPending}
+                    onClick={() => {
+                      // Remove from mock data
+                      const index = mockAlerts.findIndex(a => a.id === alert.id);
+                      if (index !== -1) {
+                        mockAlerts.splice(index, 1);
+                        // Force re-render
+                        setActiveTab("alerts");
+                        setTimeout(() => setActiveTab("configs"), 0);
+                        toast({
+                          title: "Configuration deleted",
+                          description: "Alert configuration has been deleted.",
+                        });
+                      }
+                    }}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
                     Delete

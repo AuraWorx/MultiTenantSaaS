@@ -30,8 +30,10 @@ export default function DashboardPage() {
               <>
                 <StatsCards stats={dashboardData.stats} />
                 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-8">
-                  <DashboardCharts />
+                <div className="grid grid-cols-12 gap-4 mt-8">
+                  <div className="col-span-12 lg:col-span-6">
+                    <DashboardCharts />
+                  </div>
                   <FrontierModelsWidget />
                 </div>
                 
