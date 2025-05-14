@@ -1,0 +1,653 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Configuration ---
+    const ALL_DATA_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics'; // e.g., https://...execute-api.../analytics
+    const PII_DATA_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics/pii';    // e.g., https://...execute-api.../analytics/pii
+    const STATS_ENDPOINT = 'https://8fd5ccdp3f.execute-api.us-west-2.amazonaws.com/analytics/stats'; // <-- Add new endpoint URL
+
+
+    // --- State ---
+    let currentPageKey = null;
+    let pageHistoryKeys = [null];
+    let currentPageNumber = 1;
+    let piiClassificationChartInstance = null;
+    let totalPiiChartInstance = null; // <-- State for new chart
+    let piiTimelineChartInstance = null; // <-- State for new chart
+    let allPiiData = []; // Store all fetched PII data for filtering
+    let totalItemsApprox = 0; // <-- State for total count
+
+    // --- DOM Elements ---
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const allDataTableBody = document.getElementById('all-data-table').querySelector('tbody');
+    const piiDataTableBody = document.getElementById('pii-data-table').querySelector('tbody');
+    const allLoading = document.getElementById('all-data-loading');
+    const piiLoading = document.getElementById('pii-data-loading');
+    const allErrorDiv = document.getElementById('all-data-error');
+    const piiErrorDiv = document.getElementById('pii-data-error');
+    const prevButton = document.getElementById('prev-button');
+    const nextButton = document.getElementById('next-button');
+    const pageInfo = document.getElementById('page-info');
+    // Chart elements
+    const piiChartLoading = document.getElementById('pii-chart-loading');
+    const piiChartErrorDiv = document.getElementById('pii-chart-error');
+    const piiClassificationCanvas = document.getElementById('piiClassificationChart');
+    // New Chart elements
+    const totalPiiChartLoading = document.getElementById('total-pii-chart-loading');
+    const totalPiiChartErrorDiv = document.getElementById('total-pii-chart-error');
+    const totalPiiCanvas = document.getElementById('totalPiiChart');
+    const timelineChartLoading = document.getElementById('timeline-chart-loading');
+    const timelineChartErrorDiv = document.getElementById('timeline-chart-error');
+    const piiTimelineCanvas = document.getElementById('piiTimelineChart');
+    // Export elements
+    const exportForm = document.getElementById('export-form');
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+    const exportFormatSelect = document.getElementById('export-format');
+    const exportButton = document.getElementById('export-button');
+    const exportStatusDiv = document.getElementById('export-status');
+    const exportErrorDiv = document.getElementById('export-error');
+
+
+    // --- Helper Functions ---
+    function setLoading(element, isLoading) {
+        if (element) element.style.display = isLoading ? 'block' : 'none';
+    }
+
+     function showMessage(element, message, isError = false) {
+        if (element) {
+             element.textContent = message || '';
+             element.style.display = message ? 'block' : 'none';
+             // Add/remove error class if needed (assuming .error-message class exists)
+             if (element.classList.contains('error-message') || element.classList.contains('status-message')) {
+                 element.className = isError ? 'error-message' : 'status-message';
+                 element.style.display = message ? 'block' : 'none';
+             }
+        }
+    }
+
+    function formatTimestamp(isoString) {
+        if (!isoString) return 'N/A';
+        try {
+            // Use Intl for better formatting if available, fallback to toLocaleString
+            return new Intl.DateTimeFormat(undefined, {
+                 year: 'numeric', month: 'short', day: 'numeric',
+                 hour: '2-digit', minute: '2-digit', second: '2-digit'
+            }).format(new Date(isoString));
+        } catch (e) {
+            try { return new Date(isoString).toLocaleString(); } catch (e2) { return isoString; }
+        }
+    }
+
+    function formatDateForInput(date) {
+        // Format Date object as YYYY-MM-DD for input fields
+        const d = new Date(date);
+        const month = '' + (d.getMonth() + 1);
+        const day = '' + d.getDate();
+        const year = d.getFullYear();
+        return [year, month.padStart(2, '0'), day.padStart(2, '0')].join('-');
+    }
+
+    // --- Tab Switching Logic ---
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.getAttribute('data-tab');
+
+            // Update button active states
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Update content active states
+            tabContents.forEach(content => {
+                if (content.id === targetTab) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+        });
+    });
+
+    // --- Rendering Functions ---
+    function renderAllDataTable(items) {
+        allDataTableBody.innerHTML = '';
+         if (!items || items.length === 0) {
+            allDataTableBody.innerHTML = '<tr><td colspan="6">No data found for this page.</td></tr>';
+            return;
+        }
+        items.forEach(item => {
+            const row = allDataTableBody.insertRow();
+            row.insertCell().textContent = item.log_id || 'N/A';
+            row.insertCell().textContent = formatTimestamp(item.timestamp);
+            row.insertCell().textContent = item.userId || 'N/A';
+            row.insertCell().innerHTML = item.hasPII ? '<span style="color: red;">Yes</span>' : 'No'; // Highlight PII
+            row.insertCell().textContent = (item.piiTypesDetected && item.piiTypesDetected.length > 0) ? item.piiTypesDetected.join(', ') : 'None';
+            row.insertCell().textContent = item.promptLength !== undefined ? item.promptLength : 'N/A';
+        });
+    }
+
+     function renderPiiDataTable(items) {
+        piiDataTableBody.innerHTML = '';
+        if (!items || items.length === 0) {
+            piiDataTableBody.innerHTML = '<tr><td colspan="4">No PII data found.</td></tr>';
+            return;
+        }
+        items.forEach(item => {
+            const row = piiDataTableBody.insertRow();
+            row.insertCell().textContent = formatTimestamp(item.timestamp);
+            row.insertCell().textContent = item.userId || 'N/A';
+            row.insertCell().textContent = (item.piiTypesDetected && item.piiTypesDetected.length > 0) ? item.piiTypesDetected.join(', ') : 'N/A';
+            row.insertCell().textContent = item.log_id || 'N/A';
+        });
+    }
+
+    function renderPiiClassificationChart(items) {
+        showMessage(piiChartErrorDiv, null); // Clear previous errors
+        setLoading(piiChartLoading, false); // Hide loading indicator
+
+        if (!items || items.length === 0) {
+            showMessage(piiChartErrorDiv, 'No PII data available to generate chart.', true);
+             if (piiClassificationChartInstance) {
+                piiClassificationChartInstance.destroy();
+                piiClassificationChartInstance = null;
+            }
+            return;
+        }
+
+        const piiCounts = {};
+        items.forEach(item => {
+            if (item.piiTypesDetected && Array.isArray(item.piiTypesDetected)) {
+                item.piiTypesDetected.forEach(piiType => {
+                    piiCounts[piiType] = (piiCounts[piiType] || 0) + 1;
+                });
+            }
+        });
+
+        if (Object.keys(piiCounts).length === 0) {
+             showMessage(piiChartErrorDiv, 'No PII types were found in the detected items.', true);
+             if (piiClassificationChartInstance) {
+                piiClassificationChartInstance.destroy();
+                piiClassificationChartInstance = null;
+             }
+            return;
+        }
+
+        const labels = Object.keys(piiCounts);
+        const data = Object.values(piiCounts);
+        const backgroundColors = labels.map((_, i) => `hsl(${i * (360 / (labels.length || 1)) + 10}, 75%, 65%)`); // Slightly adjust colors
+
+        const chartData = {
+            labels: labels,
+            datasets: [{
+                label: 'PII Type Count',
+                data: data,
+                backgroundColor: backgroundColors,
+                hoverOffset: 4
+            }]
+        };
+
+        const config = {
+            type: 'pie',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15 } }, // Adjust legend
+                    title: { display: false },
+                    tooltip: {
+                         callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                return `${label}: ${value} (${percentage})`;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+         if (piiClassificationChartInstance) {
+            piiClassificationChartInstance.destroy();
+         }
+
+        const ctx = piiClassificationCanvas.getContext('2d');
+        if (ctx) {
+            piiClassificationChartInstance = new Chart(ctx, config);
+            setLoading(piiChartLoading, false); // Ensure loading is off
+        } else {
+            console.error("Failed to get canvas context for PII Classification chart");
+            showMessage(piiChartErrorDiv, 'Failed to initialize chart canvas.', true);
+             setLoading(piiChartLoading, false);
+        }
+    }
+
+    // Chart 2: Total vs PII Pie Chart (NEW)
+    function renderTotalPiiChart(totalCount, piiCount) {
+        showMessage(totalPiiChartErrorDiv, null);
+        setLoading(totalPiiChartLoading, false);
+
+        if (totalCount < 0 || piiCount < 0) { // Check if data is valid
+            showMessage(totalPiiChartErrorDiv, 'Stats data not available.', true);
+            if (totalPiiChartInstance) totalPiiChartInstance.destroy();
+            return;
+        }
+
+        const nonPiiCount = totalCount - piiCount;
+        if (nonPiiCount < 0) { // Data inconsistency safeguard
+             showMessage(totalPiiChartErrorDiv, 'Data inconsistency (PII > Total).', true);
+             if (totalPiiChartInstance) totalPiiChartInstance.destroy();
+             return;
+        }
+
+        const labels = ['PII Detected', 'No PII Detected'];
+        const data = [piiCount, nonPiiCount];
+
+        const chartData = {
+            labels: labels,
+            datasets: [{
+                label: 'Prompt Counts',
+                data: data,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.7)', // Red for PII
+                    'rgba(75, 192, 192, 0.7)' // Green for No PII
+                ],
+                borderColor: [
+                     'rgba(255, 99, 132, 1)',
+                     'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 1,
+                hoverOffset: 4
+            }]
+        };
+
+        const config = {
+            type: 'doughnut', // Or 'pie'
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 15 } },
+                    title: { display: false },
+                     tooltip: {
+                         callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                return `${label}: ${value} (${percentage})`;
+                            }
+                        }
+                    }
+                },
+                 cutout: '50%' // Make it a doughnut chart
+            }
+        };
+
+        if (totalPiiChartInstance) totalPiiChartInstance.destroy();
+        const ctx = totalPiiCanvas.getContext('2d');
+         if (ctx) {
+            totalPiiChartInstance = new Chart(ctx, config);
+         } else {
+             console.error("Failed to get canvas context for Total/PII chart");
+             showMessage(totalPiiChartErrorDiv, 'Failed to initialize chart canvas.', true);
+         }
+    }
+
+    // Chart 3: PII Timeline Chart (NEW)
+    function renderPiiTimelineChart(items) {
+        showMessage(timelineChartErrorDiv, null);
+        setLoading(timelineChartLoading, false);
+
+        if (!items || items.length === 0) {
+            showMessage(timelineChartErrorDiv, 'No PII data available for timeline.', true);
+             if (piiTimelineChartInstance) piiTimelineChartInstance.destroy();
+            return;
+        }
+
+        // Get data for the last 7 days
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0); // Start of the day 7 days ago
+
+        const dailyCounts = {}; // { 'YYYY-MM-DD': count }
+        const labels = [];      // ['YYYY-MM-DD', ...] in order
+
+        // Initialize last 7 days in labels and counts
+        for (let i = 0; i < 7; i++) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dateString = formatDateForInput(date); // YYYY-MM-DD
+            labels.unshift(dateString); // Add to beginning to get chronological order
+            dailyCounts[dateString] = 0;
+        }
+
+        // Process PII items
+        items.forEach(item => {
+            try {
+                const itemDate = new Date(item.timestamp);
+                if (itemDate >= sevenDaysAgo) {
+                    const dateString = formatDateForInput(itemDate);
+                    if (dailyCounts.hasOwnProperty(dateString)) {
+                        dailyCounts[dateString]++;
+                    }
+                }
+            } catch (e) { /* Ignore items with invalid timestamps */ }
+        });
+
+        const data = labels.map(label => dailyCounts[label]); // Get counts in the correct order
+
+        const chartData = {
+            labels: labels,
+            datasets: [{
+                label: 'PII Detections per Day',
+                data: data,
+                fill: false,
+                borderColor: 'rgb(54, 162, 235)',
+                tension: 0.1, // Slight curve to the line
+                pointBackgroundColor: 'rgb(54, 162, 235)',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        };
+
+        const config = {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Number of Detections' },
+                        ticks: {
+                            stepSize: 1 // Ensure integer steps for counts
+                        }
+                    },
+                    x: {
+                         title: { display: true, text: 'Date' }
+                    }
+                },
+                plugins: {
+                     legend: { display: false },
+                     title: { display: false },
+                      tooltip: {
+                         callbacks: {
+                            label: function(context) {
+                                return ` Detections: ${context.parsed.y}`;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        if (piiTimelineChartInstance) piiTimelineChartInstance.destroy();
+        const ctx = piiTimelineCanvas.getContext('2d');
+        if (ctx) {
+             piiTimelineChartInstance = new Chart(ctx, config);
+        } else {
+             console.error("Failed to get canvas context for Timeline chart");
+             showMessage(timelineChartErrorDiv, 'Failed to initialize chart canvas.', true);
+        }
+    }
+
+     function updatePaginationButtons() {
+        prevButton.disabled = pageHistoryKeys.length <= 1;
+        nextButton.disabled = !currentPageKey;
+        pageInfo.textContent = `Page ${currentPageNumber}`;
+    }
+
+
+    // --- Fetching Data ---
+    async function fetchAllData(lastKey = null) {
+        setLoading(allLoading, true);
+        showMessage(allErrorDiv, null);
+        allDataTableBody.innerHTML = '';
+        let url = `${ALL_DATA_ENDPOINT}?limit=10`;
+        if (lastKey) {
+            url += `&lastKey=${encodeURIComponent(lastKey)}`;
+        }
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorMsg = `Error fetching data: ${response.status}`;
+                 try { const errData = await response.json(); errorMsg += ` - ${errData.message || 'Unknown error'}`; } catch(e){}
+                throw new Error(errorMsg);
+            }
+            const data = await response.json();
+            renderAllDataTable(data.items);
+            currentPageKey = data.lastKey;
+            updatePaginationButtons();
+        } catch (error) {
+            console.error('Failed to fetch all data:', error);
+            showMessage(allErrorDiv, error.message, true);
+            prevButton.disabled = true; // Disable pagination on error
+            nextButton.disabled = true;
+        } finally {
+            setLoading(allLoading, false);
+        }
+    }
+
+    // NEW function to fetch stats
+    async function fetchStatsData() {
+        setLoading(totalPiiChartLoading, true); // Show loading for this chart
+        showMessage(totalPiiChartErrorDiv, null);
+
+        // Ensure endpoint is configured
+        if (STATS_ENDPOINT.includes('YOUR_API_GATEWAY')) {
+             showMessage(totalPiiChartErrorDiv, 'Stats API endpoint not configured.', true);
+             setLoading(totalPiiChartLoading, false);
+             return;
+        }
+
+        try {
+            const response = await fetch(STATS_ENDPOINT);
+            if (!response.ok) {
+                 const errorMsg = `Error fetching stats: ${response.status}`;
+                 try { const errData = await response.json(); errorMsg += ` - ${errData.message || 'Unknown error'}`; } catch(e){}
+                 throw new Error(errorMsg);
+            }
+            const stats = await response.json();
+            totalItemsApprox = stats.totalItemsApprox !== undefined ? stats.totalItemsApprox : -1; // Store total count
+
+            // Render the Total vs PII chart now that we have total and PII counts
+            renderTotalPiiChart(totalItemsApprox, allPiiData.length); // Assumes allPiiData is already populated
+
+        } catch (error) {
+             console.error('Failed to fetch stats data:', error);
+             showMessage(totalPiiChartErrorDiv, `Failed to load stats: ${error.message}`, true);
+             renderTotalPiiChart(-1, -1); // Indicate error state to chart render
+        } finally {
+             // Loading indicator handled within renderTotalPiiChart
+        }
+    }
+
+    // Modify fetchPiiData to trigger stats fetch and timeline rendering
+    async function fetchPiiData() {
+        setLoading(piiLoading, true);
+        setLoading(piiChartLoading, true);
+        setLoading(timelineChartLoading, true); // Show loading for timeline chart
+        showMessage(piiErrorDiv, null);
+        showMessage(piiChartErrorDiv, null);
+        showMessage(timelineChartErrorDiv, null); // Clear timeline error too
+        piiDataTableBody.innerHTML = ''; // Clear table
+
+        try {
+            const response = await fetch(PII_DATA_ENDPOINT);
+             if (!response.ok) {
+                const errorMsg = `Error fetching PII data: ${response.status}`;
+                 try { const errData = await response.json(); errorMsg += ` - ${errData.message || 'Unknown error'}`; } catch(e){}
+                throw new Error(errorMsg);
+            }
+            const data = await response.json();
+            allPiiData = data.items || [];
+
+            // Render table and charts that depend only on PII data
+            renderPiiDataTable(allPiiData);
+            renderPiiClassificationChart(allPiiData);
+            renderPiiTimelineChart(allPiiData); // <-- Render timeline chart
+
+            // Pre-populate export dates (optional)
+            if (allPiiData.length > 0) {
+                const timestamps = allPiiData.map(item => new Date(item.timestamp).getTime()).filter(t => !isNaN(t));
+                if (timestamps.length > 0) {
+                    const minDate = new Date(Math.min(...timestamps));
+                    const maxDate = new Date(Math.max(...timestamps));
+                    startDateInput.value = formatDateForInput(minDate);
+                    endDateInput.value = formatDateForInput(maxDate);
+                }
+            } else {
+                 // Clear dates if no data
+                 startDateInput.value = '';
+                 endDateInput.value = '';
+            }
+
+            // Now fetch the stats data to render the Total vs PII chart
+            await fetchStatsData(); // Call the function to get total count
+
+        } catch (error) {
+            console.error('Failed to fetch PII data:', error);
+            showMessage(piiErrorDiv, error.message, true);
+            showMessage(piiChartErrorDiv, `Chart data unavailable: ${error.message}`, true);
+            showMessage(timelineChartErrorDiv, `Timeline data unavailable: ${error.message}`, true);
+            // Ensure charts are cleared/show error state
+            renderPiiClassificationChart(null);
+            renderTotalPiiChart(-1,-1);
+            renderPiiTimelineChart(null);
+        } finally {
+            setLoading(piiLoading, false);
+             // Loading for individual charts is handled in their render functions
+        }
+    }
+
+    // --- Export Logic ---
+    function generateCSV(data) {
+        if (!data || data.length === 0) return '';
+
+        // Define headers based on PII data structure
+        const headers = ['Timestamp', 'UserID', 'PIITypesDetected', 'LogID', 'SessionID', 'PromptLength']; // Add more if needed
+        const csvRows = [headers.join(',')]; // Header row
+
+        data.forEach(item => {
+            const timestamp = item.timestamp ? `"${formatTimestamp(item.timestamp)}"` : ''; // Quote timestamp with comma
+            const userId = item.userId || '';
+            const piiTypes = item.piiTypesDetected ? `"${item.piiTypesDetected.join('; ')}"` : ''; // Quote list
+            const logId = item.log_id || '';
+            const sessionId = item.sessionId || ''; // Assuming sessionId exists
+            const promptLength = item.promptLength !== undefined ? item.promptLength : '';
+
+             // Ensure order matches headers
+             const values = [timestamp, userId, piiTypes, logId, sessionId, promptLength];
+            csvRows.push(values.join(','));
+        });
+
+        return csvRows.join('\n');
+    }
+
+    function triggerDownload(content, filename, contentType) {
+        const blob = new Blob([content], { type: contentType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    async function handleExport() {
+        showMessage(exportStatusDiv, null);
+        showMessage(exportErrorDiv, null);
+
+        const startDateStr = startDateInput.value;
+        const endDateStr = endDateInput.value;
+        const format = exportFormatSelect.value;
+
+        if (!startDateStr || !endDateStr) {
+             showMessage(exportErrorDiv, 'Please select both a start and end date.', true);
+            return;
+        }
+
+        const startDate = new Date(startDateStr);
+        // Set end date to the END of the selected day for inclusive filtering
+        const endDate = new Date(endDateStr);
+        endDate.setHours(23, 59, 59, 999);
+
+        if (startDate > endDate) {
+             showMessage(exportErrorDiv, 'Start date cannot be after end date.', true);
+             return;
+        }
+
+        // Filter the stored PII data
+        const filteredData = allPiiData.filter(item => {
+            try {
+                const itemDate = new Date(item.timestamp);
+                return itemDate >= startDate && itemDate <= endDate;
+            } catch (e) {
+                return false; // Exclude if timestamp is invalid
+            }
+        });
+
+        if (filteredData.length === 0) {
+             showMessage(exportErrorDiv, 'No PII data found within the selected date range.', true);
+            return;
+        }
+
+        showMessage(exportStatusDiv, `Generating ${format.toUpperCase()} report for ${filteredData.length} items...`);
+
+        try {
+            if (format === 'csv') {
+                const csvContent = generateCSV(filteredData);
+                triggerDownload(csvContent, `piiGuard_report_${startDateStr}_to_${endDateStr}.csv`, 'text/csv;charset=utf-8;');
+                showMessage(exportStatusDiv, `CSV report generated successfully.`);
+
+            } else if (format === 'pdf') {
+                // --- Basic PDF Placeholder ---
+                // Real PDF generation needs a library like jsPDF or pdf-lib
+                console.log("PDF Export Requested (Requires jsPDF library):", filteredData);
+                alert(`PDF generation is not fully implemented in this demo.\nData for ${filteredData.length} items logged to console.`);
+                 showMessage(exportStatusDiv, `PDF preview logged to console.`);
+                // --- End Placeholder ---
+            }
+        } catch(error) {
+             console.error("Export failed:", error);
+             showMessage(exportErrorDiv, `Export failed: ${error.message}`, true);
+        }
+    }
+
+
+    // --- Event Listeners ---
+    nextButton.addEventListener('click', () => {
+        if (currentPageKey) {
+            pageHistoryKeys.push(currentPageKey);
+            currentPageNumber++;
+            fetchAllData(currentPageKey);
+        }
+    });
+
+    prevButton.addEventListener('click', () => {
+        if (pageHistoryKeys.length > 1) {
+            pageHistoryKeys.pop();
+            const keyForPrevFetch = pageHistoryKeys[pageHistoryKeys.length - 1];
+             currentPageNumber--;
+            fetchAllData(keyForPrevFetch);
+        }
+    });
+
+    exportButton.addEventListener('click', handleExport);
+
+
+    // --- Initial Load ---
+    fetchAllData(); // Load first page of all data table
+    fetchPiiData(); // Load PII data and trigger stats fetch + all chart rendering
+
+});
+
