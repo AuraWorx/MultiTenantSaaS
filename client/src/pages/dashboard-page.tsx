@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { StatsCards } from '@/components/dashboard/stats-cards';
-import { DashboardCharts } from '@/components/dashboard/charts';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import { FrontierModelsWidget } from '@/components/dashboard/frontier-models-widget';
 import { PiiDataChart } from '@/components/dashboard/pii-data-chart';
@@ -32,11 +31,6 @@ export default function DashboardPage() {
                 <StatsCards stats={dashboardData.stats} />
                 
                 <div className="grid grid-cols-12 gap-6 mt-8">
-                  {/* AI Usage Chart - Increased to full width */}
-                  <div className="col-span-12">
-                    <DashboardCharts />
-                  </div>
-                  
                   {/* Frontier Models and PII Data side by side on larger screens */}
                   <div className="col-span-12 md:col-span-6">
                     <FrontierModelsWidget />
