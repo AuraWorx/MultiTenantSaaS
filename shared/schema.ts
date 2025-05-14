@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -6,15 +6,15 @@ import { relations } from "drizzle-orm";
 // Organizations (Tenants)
 export const organizations = pgTable("organizations", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // User Roles
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  permissions: text("permissions").array().notNull(),
+  name: text("name").notNull(),
+  permissions: json("permissions").$type<string[]>(),
 });
 
 // Users
@@ -26,14 +26,10 @@ export const users = pgTable("users", {
   firstName: text("first_name"),
   lastName: text("last_name"),
   avatarUrl: text("avatar_url"),
-  active: boolean("active").default(true).notNull(),
-  organizationId: integer("organization_id")
-    .references(() => organizations.id)
-    .notNull(),
-  roleId: integer("role_id")
-    .references(() => roles.id)
-    .notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  active: boolean("active").notNull().default(true),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  roleId: integer("role_id").notNull().references(() => roles.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // AI Systems
@@ -91,6 +87,20 @@ export const complianceIssues = pgTable("compliance_issues", {
     .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// PII Detection Logs
+export const piiDetectionLogs = pgTable("pii_detection_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  organizationId: integer("organization_id").references(() => organizations.id),
+  textContent: text("text_content").notNull(),
+  detectedPii: json("detected_pii").$type<{
+    type: string;
+    value: string;
+    confidence: number;
+  }[]>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Define relations
@@ -188,6 +198,11 @@ export const insertComplianceIssueSchema = createInsertSchema(complianceIssues).
   updatedAt: true,
 });
 
+export const insertPiiDetectionLogSchema = createInsertSchema(piiDetectionLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Type Exports
 export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
@@ -206,6 +221,9 @@ export type InsertRiskItem = z.infer<typeof insertRiskItemSchema>;
 
 export type ComplianceIssue = typeof complianceIssues.$inferSelect;
 export type InsertComplianceIssue = z.infer<typeof insertComplianceIssueSchema>;
+
+export type PiiDetectionLog = typeof piiDetectionLogs.$inferSelect;
+export type InsertPiiDetectionLog = z.infer<typeof insertPiiDetectionLogSchema>;
 
 // GitHub Scan Configuration
 export const githubScanConfigs = pgTable("github_scan_configs", {
