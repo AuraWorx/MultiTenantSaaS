@@ -89,11 +89,7 @@ function Router() {
           <ManagePage />
         </AppLayout>
       )} />
-      <ProtectedRoute path="/risk-register" component={() => (
-        <AppLayout>
-          <RiskRegisterPage />
-        </AppLayout>
-      )} />
+      {/* Risk Register is now integrated into the Manage page as a feature */}
       <ProtectedRoute path="/users" component={() => (
         <AppLayout>
           <UserManagementPage />
