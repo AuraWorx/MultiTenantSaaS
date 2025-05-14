@@ -11,7 +11,10 @@ import {
   LogOut,
   Shield,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  PanelLeftClose,
+  PanelLeft,
+  Separator
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -24,6 +27,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useQuery } from '@tanstack/react-query';
 import { Organization } from '@shared/schema';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const [location] = useLocation();

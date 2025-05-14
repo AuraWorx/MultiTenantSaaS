@@ -4,6 +4,7 @@ import { StatsCards } from '@/components/dashboard/stats-cards';
 import { DashboardCharts } from '@/components/dashboard/charts';
 import { ActivityFeed } from '@/components/dashboard/activity-feed';
 import { FrontierModelsWidget } from '@/components/dashboard/frontier-models-widget';
+import { PiiDataChart } from '@/components/dashboard/pii-data-chart';
 import { DashboardStats, ActivityItem } from '@/types';
 import { Loader2 } from 'lucide-react';
 
@@ -34,7 +35,20 @@ export default function DashboardPage() {
                   <div className="col-span-12 lg:col-span-6">
                     <DashboardCharts />
                   </div>
-                  <FrontierModelsWidget />
+                  <div className="col-span-12 lg:col-span-6">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="col-span-1">
+                        <FrontierModelsWidget />
+                      </div>
+                      <div className="col-span-1 mt-4">
+                        <PiiDataChart 
+                          totalCount={1000} 
+                          piiCount={150} 
+                          useSmallHeight={true} 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
                 <ActivityFeed activities={dashboardData.activities} />
