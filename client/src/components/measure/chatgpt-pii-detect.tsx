@@ -278,14 +278,17 @@ export function ChatGptPiiDetect() {
     // Import ChartJS dynamically to avoid SSR issues
     const loadChart = async () => {
       try {
-        // Load Chart.js
-        await import('chart.js');
-        // Register all controllers, elements, scales and plugins
+        // Load Chart.js directly without dynamic import
         const { Chart, registerables } = await import('chart.js');
         Chart.register(...registerables);
         
-        // Now render the charts
-        renderCharts();
+        // Set a small timeout to ensure DOM is ready
+        setTimeout(() => {
+          // Now render the charts individually
+          renderPiiClassificationChart();
+          renderTotalPiiChart();
+          renderTimelineChart();
+        }, 100);
       } catch (error) {
         console.error('Error loading Chart.js:', error);
         setPiiChartError('Failed to load chart library.');
@@ -383,256 +386,256 @@ export function ChatGptPiiDetect() {
   // Declare Chart at module level for TypeScript
   let Chart: any;
   
-  // Render charts using ChartJS
-  const renderCharts = () => {
-    // Only proceed if Chart.js is loaded and registered
-    if (typeof window === 'undefined') {
-      console.error('Running in SSR context');
-      return;
-    }
-    
-    // Import Chart from the module
-    import('chart.js').then(module => {
-      Chart = module.Chart;
-      
-      // PII Classification Chart
-      renderPiiClassificationChart();
-      renderTotalPiiChart();
-      renderTimelineChart();
-    }).catch(error => {
-      console.error('Error importing Chart.js:', error);
-      setPiiChartError('Failed to load chart library.');
-      setTotalPiiChartError('Failed to load chart library.');
-      setTimelineChartError('Failed to load chart library.');
-    });
-  };
+  // No longer using the renderCharts function as we're calling 
+  // individual render functions directly from the useEffect
 
   // Render PII Classification Chart
-  const renderPiiClassificationChart = () => {
+  const renderPiiClassificationChart = async () => {
     setPiiChartLoading(true);
     setPiiChartError(null);
-    
-    const piiClassificationCanvas = document.getElementById('piiClassificationChart') as HTMLCanvasElement;
-    if (!piiClassificationCanvas) {
-      console.error('PII Classification canvas not found');
-      setPiiChartError('Chart canvas not found');
-      setPiiChartLoading(false);
-      return;
-    }
-    
-    const ctx = piiClassificationCanvas.getContext('2d');
-    if (!ctx) {
-      console.error('Failed to get canvas context');
-      setPiiChartError('Failed to initialize chart canvas');
-      setPiiChartLoading(false);
-      return;
-    }
-    
-    // Prepare chart data
-    const labels = Object.keys(totalPiiCounts);
-    const data = Object.values(totalPiiCounts);
-    
-    if (labels.length === 0) {
-      setPiiChartError('No PII types were found in the detected items');
-      setPiiChartLoading(false);
-      return;
-    }
-    
-    const backgroundColors = labels.map((_, i) => 
-      `hsl(${i * (360 / (labels.length || 1)) + 10}, 75%, 65%)`
-    );
-    
-    const chartData: ChartData = {
-      labels: labels,
-      datasets: [{
-        label: 'PII Type Count',
-        data: data,
-        backgroundColor: backgroundColors,
-        hoverOffset: 4
-      }]
-    };
-    
-    // Destroy existing chart if it exists
-    if (piiClassificationChartRef.current) {
-      piiClassificationChartRef.current.destroy();
-    }
-    
-    // Create new chart
-    piiClassificationChartRef.current = new Chart(ctx, {
-      type: 'pie',
-      data: chartData,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { padding: 15 } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const label = context.label || '';
-                const value = context.parsed || 0;
-                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
-                return `${label}: ${value} (${percentage})`;
+
+    try {
+      const { Chart } = await import('chart.js');
+      
+      const piiClassificationCanvas = document.getElementById('piiClassificationChart') as HTMLCanvasElement;
+      if (!piiClassificationCanvas) {
+        console.error('PII Classification canvas not found');
+        setPiiChartError('Chart canvas not found');
+        setPiiChartLoading(false);
+        return;
+      }
+      
+      const ctx = piiClassificationCanvas.getContext('2d');
+      if (!ctx) {
+        console.error('Failed to get canvas context');
+        setPiiChartError('Failed to initialize chart canvas');
+        setPiiChartLoading(false);
+        return;
+      }
+      
+      // Prepare chart data
+      const labels = Object.keys(totalPiiCounts);
+      const data = Object.values(totalPiiCounts);
+      
+      if (labels.length === 0) {
+        setPiiChartError('No PII types were found in the detected items');
+        setPiiChartLoading(false);
+        return;
+      }
+      
+      const backgroundColors = labels.map((_, i) => 
+        `hsl(${i * (360 / (labels.length || 1)) + 10}, 75%, 65%)`
+      );
+      
+      const chartData: ChartData = {
+        labels: labels,
+        datasets: [{
+          label: 'PII Type Count',
+          data: data,
+          backgroundColor: backgroundColors,
+          hoverOffset: 4
+        }]
+      };
+      
+      // Destroy existing chart if it exists
+      if (piiClassificationChartRef.current) {
+        piiClassificationChartRef.current.destroy();
+      }
+      
+      // Create new chart
+      piiClassificationChartRef.current = new Chart(ctx, {
+        type: 'pie',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 15 } },
+            tooltip: {
+              callbacks: {
+                label: function(context: any) {
+                  const label = context.label || '';
+                  const value = context.parsed || 0;
+                  const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                  return `${label}: ${value} (${percentage})`;
+                }
               }
             }
           }
         }
-      }
-    });
-    
-    setPiiChartLoading(false);
+      });
+    } catch (error) {
+      console.error('Error rendering PII Classification chart:', error);
+      setPiiChartError('Failed to render chart');
+    } finally {
+      setPiiChartLoading(false);
+    }
   };
 
   // Render Total vs PII Chart
-  const renderTotalPiiChart = () => {
+  const renderTotalPiiChart = async () => {
     setTotalPiiChartLoading(true);
     setTotalPiiChartError(null);
     
-    const totalPiiCanvas = document.getElementById('totalPiiChart') as HTMLCanvasElement;
-    if (!totalPiiCanvas) {
-      console.error('Total PII canvas not found');
-      setTotalPiiChartError('Chart canvas not found');
-      setTotalPiiChartLoading(false);
-      return;
-    }
-    
-    const ctx = totalPiiCanvas.getContext('2d');
-    if (!ctx) {
-      console.error('Failed to get canvas context');
-      setTotalPiiChartError('Failed to initialize chart canvas');
-      setTotalPiiChartLoading(false);
-      return;
-    }
-    
-    const nonPiiCount = Math.max(0, totalCount - piiCount);
-    
-    const chartData: ChartData = {
-      labels: ['PII Detected', 'No PII Detected'],
-      datasets: [{
-        label: 'Prompt Counts',
-        data: [piiCount, nonPiiCount],
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.7)', // Red for PII
-          'rgba(75, 192, 192, 0.7)'  // Green for No PII
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(75, 192, 192, 1)'
-        ],
-        borderWidth: 1,
-        hoverOffset: 4
-      }]
-    };
-    
-    // Destroy existing chart if it exists
-    if (totalPiiChartRef.current) {
-      totalPiiChartRef.current.destroy();
-    }
-    
-    // Create new chart
-    totalPiiChartRef.current = new Chart(ctx, {
-      type: 'doughnut',
-      data: chartData,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { padding: 15 } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const label = context.label || '';
-                const value = context.parsed || 0;
-                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
-                return `${label}: ${value} (${percentage})`;
+    try {
+      const { Chart } = await import('chart.js');
+      
+      const totalPiiCanvas = document.getElementById('totalPiiChart') as HTMLCanvasElement;
+      if (!totalPiiCanvas) {
+        console.error('Total PII canvas not found');
+        setTotalPiiChartError('Chart canvas not found');
+        setTotalPiiChartLoading(false);
+        return;
+      }
+      
+      const ctx = totalPiiCanvas.getContext('2d');
+      if (!ctx) {
+        console.error('Failed to get canvas context');
+        setTotalPiiChartError('Failed to initialize chart canvas');
+        setTotalPiiChartLoading(false);
+        return;
+      }
+      
+      const nonPiiCount = Math.max(0, totalCount - piiCount);
+      
+      const chartData: ChartData = {
+        labels: ['PII Detected', 'No PII Detected'],
+        datasets: [{
+          label: 'Prompt Counts',
+          data: [piiCount, nonPiiCount],
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.7)', // Red for PII
+            'rgba(75, 192, 192, 0.7)'  // Green for No PII
+          ],
+          borderColor: [
+            'rgba(255, 99, 132, 1)',
+            'rgba(75, 192, 192, 1)'
+          ],
+          borderWidth: 1,
+          hoverOffset: 4
+        }]
+      };
+      
+      // Destroy existing chart if it exists
+      if (totalPiiChartRef.current) {
+        totalPiiChartRef.current.destroy();
+      }
+      
+      // Create new chart
+      totalPiiChartRef.current = new Chart(ctx, {
+        type: 'doughnut',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 15 } },
+            tooltip: {
+              callbacks: {
+                label: function(context: any) {
+                  const label = context.label || '';
+                  const value = context.parsed || 0;
+                  const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                  return `${label}: ${value} (${percentage})`;
+                }
               }
             }
           }
         }
-      }
-    });
-    
-    setTotalPiiChartLoading(false);
+      });
+    } catch (error) {
+      console.error('Error rendering Total PII chart:', error);
+      setTotalPiiChartError('Failed to render chart');
+    } finally {
+      setTotalPiiChartLoading(false);
+    }
   };
 
   // Render Timeline Chart
-  const renderTimelineChart = () => {
+  const renderTimelineChart = async () => {
     setTimelineChartLoading(true);
     setTimelineChartError(null);
     
-    const timelineCanvas = document.getElementById('piiTimelineChart') as HTMLCanvasElement;
-    if (!timelineCanvas) {
-      console.error('Timeline canvas not found');
-      setTimelineChartError('Chart canvas not found');
-      setTimelineChartLoading(false);
-      return;
-    }
-    
-    const ctx = timelineCanvas.getContext('2d');
-    if (!ctx) {
-      console.error('Failed to get canvas context');
-      setTimelineChartError('Failed to initialize chart canvas');
-      setTimelineChartLoading(false);
-      return;
-    }
-    
-    // Sort dates and prepare data
-    const dates = Object.keys(timelineData).sort();
-    const counts = dates.map(date => timelineData[date]);
-    
-    if (dates.length === 0) {
-      setTimelineChartError('No timeline data available');
-      setTimelineChartLoading(false);
-      return;
-    }
-    
-    // Format dates for display
-    const formattedDates = dates.map(dateStr => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    });
-    
-    const chartData = {
-      labels: formattedDates,
-      datasets: [{
-        label: 'PII Detections',
-        data: counts,
-        fill: false,
-        borderColor: 'rgba(255, 99, 132, 1)',
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        tension: 0.1
-      }]
-    };
-    
-    // Destroy existing chart if it exists
-    if (timelineChartRef.current) {
-      timelineChartRef.current.destroy();
-    }
-    
-    // Create new chart
-    timelineChartRef.current = new Chart(ctx, {
-      type: 'line',
-      data: chartData,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              precision: 0
-            }
-          }
-        },
-        plugins: {
-          legend: { position: 'bottom' }
-        }
+    try {
+      const { Chart } = await import('chart.js');
+      
+      const timelineCanvas = document.getElementById('piiTimelineChart') as HTMLCanvasElement;
+      if (!timelineCanvas) {
+        console.error('Timeline canvas not found');
+        setTimelineChartError('Chart canvas not found');
+        setTimelineChartLoading(false);
+        return;
       }
-    });
-    
-    setTimelineChartLoading(false);
+      
+      const ctx = timelineCanvas.getContext('2d');
+      if (!ctx) {
+        console.error('Failed to get canvas context');
+        setTimelineChartError('Failed to initialize chart canvas');
+        setTimelineChartLoading(false);
+        return;
+      }
+      
+      // Sort dates and prepare data
+      const dates = Object.keys(timelineData).sort();
+      const counts = dates.map(date => timelineData[date]);
+      
+      if (dates.length === 0) {
+        setTimelineChartError('No timeline data available');
+        setTimelineChartLoading(false);
+        return;
+      }
+      
+      // Format dates for display
+      const formattedDates = dates.map(dateStr => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      });
+      
+      const chartData = {
+        labels: formattedDates,
+        datasets: [{
+          label: 'PII Detections',
+          data: counts,
+          fill: false,
+          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          tension: 0.1
+        }]
+      };
+      
+      // Destroy existing chart if it exists
+      if (timelineChartRef.current) {
+        timelineChartRef.current.destroy();
+      }
+      
+      // Create new chart
+      timelineChartRef.current = new Chart(ctx, {
+        type: 'line',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          },
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error rendering Timeline chart:', error);
+      setTimelineChartError('Failed to render chart');
+    } finally {
+      setTimelineChartLoading(false);
+    }
   };
 
   // Handle export
