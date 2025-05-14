@@ -3,7 +3,8 @@ import {
   users, organizations, roles, aiSystems, riskItems, riskMitigations, complianceIssues,
   githubScanConfigs, githubScanResults, githubScanSummaries,
   biasAnalysisScans, biasAnalysisResults,
-  frontierModelsList, frontierModelsAlertsConfig, frontierModelsAlerts
+  frontierModelsList, frontierModelsAlertsConfig, frontierModelsAlerts,
+  infraInventory
 } from '../shared/schema';
 import { db, pool } from '../server/db';
 
@@ -19,6 +20,7 @@ async function seed() {
 
     // Clear existing data
     console.log('Clearing existing data...');
+    await db.delete(infraInventory);
     await db.delete(complianceIssues);
     await db.delete(riskItems);
     await db.delete(aiSystems);
@@ -513,6 +515,83 @@ async function seed() {
         url: 'https://example.com/gemini-security',
         datePublished: new Date('2024-05-05'),
         organizationId: adminOrg.id,
+      },
+    ]);
+
+    // Create Infrastructure Inventory items
+    console.log('Creating infrastructure inventory items...');
+    await db.insert(infraInventory).values([
+      {
+        label: 'Linux Servers',
+        category: 'onprem',
+        provider: 'In-house',
+        count: 12,
+        icon: 'linux',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'Windows Servers',
+        category: 'onprem',
+        provider: 'In-house',
+        count: 8,
+        icon: 'windows',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'AWS EC2',
+        category: 'cloud',
+        provider: 'AWS',
+        count: 24,
+        icon: 'cloud-aws',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'Azure VMs',
+        category: 'cloud',
+        provider: 'Azure',
+        count: 16,
+        icon: 'cloud-azure',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'GitHub Repos',
+        category: 'sourcecontrol',
+        provider: 'GitHub',
+        count: 38,
+        icon: 'github',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'Databases',
+        category: 'onprem',
+        provider: 'In-house',
+        count: 7,
+        icon: 'database',
+        organizationId: adminOrg.id,
+        createdById: adminUser.id,
+      },
+      {
+        label: 'Tech Cloud VMs',
+        category: 'cloud',
+        provider: 'GCP',
+        count: 15,
+        icon: 'cloud-aws',
+        organizationId: techOrg.id,
+        createdById: techAdmin.id,
+      },
+      {
+        label: 'Tech GitHub',
+        category: 'sourcecontrol',
+        provider: 'GitHub',
+        count: 27,
+        icon: 'github',
+        organizationId: techOrg.id,
+        createdById: techAdmin.id,
       },
     ]);
 
