@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   Sparkles,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  MessageSquare
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -72,6 +73,13 @@ export function Sidebar() {
         { href: '/measure', icon: <BarChart2 className="w-5 h-5" />, text: 'Measure' },
         { href: '/manage', icon: <Settings className="w-5 h-5" />, text: 'Manage' }
       ]
+    },
+    // Third section - Incognito ChatGPT
+    { 
+      section: 'incognito',
+      items: [
+        { href: '/incognito-chat', icon: <MessageSquare className="w-5 h-5" />, text: 'Incognito ChatGPT' }
+      ]
     }
   ];
   
@@ -115,7 +123,7 @@ export function Sidebar() {
 
       <div 
         className={cn(
-          "fixed inset-y-0 left-0 z-30 overflow-y-auto bg-white border-r border-gray-200 transition-all duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-30 overflow-y-auto bg-background border-r border-border transition-all duration-300 ease-in-out",
           isCollapsed ? "w-20" : "w-64",
           isAutoHide && !isMouseOver && !isMobileMenuOpen ? "-ml-16" : "",
           "lg:static lg:inset-0"
@@ -124,21 +132,21 @@ export function Sidebar() {
         onMouseLeave={() => setIsMouseOver(false)}
       >
         {/* Logo and collapse button */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <div className="bg-primary text-white font-bold rounded-lg p-2 flex items-center justify-center">
                 <span>A<span className={cn("lowercase", isCollapsed && "hidden")}>ura</span> AI</span>
               </div>
             </div>
-            {!isCollapsed && <div className="ml-2 text-xl font-bold text-gray-900">Govern</div>}
+            {!isCollapsed && <div className="ml-2 text-xl font-bold text-foreground">Govern</div>}
           </div>
           
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hover:bg-gray-100"
+            className="hover:bg-muted"
           >
             {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </Button>
@@ -146,10 +154,10 @@ export function Sidebar() {
         
         {/* Organization Selector */}
         {!isCollapsed && (
-          <div className="border-b border-gray-200">
+          <div className="border-b border-border">
             <div className="relative px-4 py-3">
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center justify-between w-full text-sm font-medium text-left text-gray-700 hover:text-gray-900 focus:outline-none">
+                <DropdownMenuTrigger className="flex items-center justify-between w-full text-sm font-medium text-left text-foreground hover:text-primary focus:outline-none">
                   <span className="font-medium text-sm">{user?.organization?.name || 'Loading...'}</span>
                   <ChevronDown className="w-5 h-5 ml-1" />
                 </DropdownMenuTrigger>
@@ -175,16 +183,7 @@ export function Sidebar() {
           </div>
         )}
         
-        {/* Auto-hide toggle */}
-        {!isCollapsed && (
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200">
-            <span className="text-sm font-medium text-gray-700">Auto-hide sidebar</span>
-            <Switch
-              checked={isAutoHide}
-              onCheckedChange={setIsAutoHide}
-            />
-          </div>
-        )}
+        {/* Auto-hide toggle removed as requested */}
         
         {/* Navigation */}
         <nav className="px-2 py-4 space-y-4 flex-grow">
@@ -198,8 +197,8 @@ export function Sidebar() {
                       className={cn(
                         "group flex items-center px-3 py-2 text-sm font-medium rounded-md cursor-pointer",
                         location === menuItem.href
-                          ? 'bg-gray-100 text-primary'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                          ? 'bg-muted text-primary'
+                          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                         isCollapsed && "justify-center"
                       )}
                     >
@@ -219,7 +218,7 @@ export function Sidebar() {
         </nav>
         
         {/* Logout button (moved to bottom) */}
-        <div className="border-t border-gray-200 mt-auto">
+        <div className="border-t border-border mt-auto">
           <div className={cn(
             "flex items-center justify-between px-4 py-3",
             isCollapsed && "justify-center px-2"
@@ -234,13 +233,13 @@ export function Sidebar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="ml-3 min-w-0 flex-1">
-                    <div className="text-sm font-medium text-gray-900 truncate">
+                    <div className="text-sm font-medium text-foreground truncate">
                       {user?.firstName && user?.lastName 
                         ? `${user.firstName} ${user.lastName}`
                         : user?.username || 'User'}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">{user?.email || ''}</div>
-                    <div className="text-xs text-gray-500 truncate">{user?.role?.name || ''}</div>
+                    <div className="text-xs text-muted-foreground truncate">{user?.email || ''}</div>
+                    <div className="text-xs text-muted-foreground truncate">{user?.role?.name || ''}</div>
                   </div>
                 </div>
               </>
@@ -249,7 +248,7 @@ export function Sidebar() {
               variant="ghost" 
               size={isCollapsed ? "icon" : "sm"}
               onClick={() => logoutMutation.mutate()}
-              className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <LogOut className="w-5 h-5" />
               {!isCollapsed && <span className="ml-2">Logout</span>}
