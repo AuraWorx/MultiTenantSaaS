@@ -21,6 +21,13 @@ export interface IStorage {
   } | undefined>;
   createUser(user: InsertUser): Promise<User>;
   sessionStore: session.SessionStore;
+  
+  // InfraInventory methods
+  getInfraInventory(organizationId: number): Promise<InfraInventory[]>;
+  getInfraInventoryById(id: number): Promise<InfraInventory | undefined>;
+  createInfraInventory(item: InsertInfraInventory): Promise<InfraInventory>;
+  updateInfraInventory(id: number, item: Partial<InsertInfraInventory>): Promise<InfraInventory | undefined>;
+  deleteInfraInventory(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -89,6 +96,71 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error creating user:", error);
       throw error;
+    }
+  }
+
+  // InfraInventory Implementation
+  async getInfraInventory(organizationId: number): Promise<InfraInventory[]> {
+    try {
+      return await db
+        .select()
+        .from(infraInventory)
+        .where(eq(infraInventory.organizationId, organizationId));
+    } catch (error) {
+      console.error("Error getting infrastructure inventory:", error);
+      throw error;
+    }
+  }
+
+  async getInfraInventoryById(id: number): Promise<InfraInventory | undefined> {
+    try {
+      const [item] = await db
+        .select()
+        .from(infraInventory)
+        .where(eq(infraInventory.id, id));
+      return item;
+    } catch (error) {
+      console.error("Error getting infrastructure inventory item:", error);
+      throw error;
+    }
+  }
+
+  async createInfraInventory(item: InsertInfraInventory): Promise<InfraInventory> {
+    try {
+      const [newItem] = await db
+        .insert(infraInventory)
+        .values(item)
+        .returning();
+      return newItem;
+    } catch (error) {
+      console.error("Error creating infrastructure inventory item:", error);
+      throw error;
+    }
+  }
+
+  async updateInfraInventory(id: number, item: Partial<InsertInfraInventory>): Promise<InfraInventory | undefined> {
+    try {
+      const [updatedItem] = await db
+        .update(infraInventory)
+        .set(item)
+        .where(eq(infraInventory.id, id))
+        .returning();
+      return updatedItem;
+    } catch (error) {
+      console.error("Error updating infrastructure inventory item:", error);
+      throw error;
+    }
+  }
+
+  async deleteInfraInventory(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(infraInventory)
+        .where(eq(infraInventory.id, id));
+      return true;
+    } catch (error) {
+      console.error("Error deleting infrastructure inventory item:", error);
+      return false;
     }
   }
 }
