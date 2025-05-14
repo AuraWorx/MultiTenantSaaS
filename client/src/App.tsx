@@ -17,7 +17,7 @@ import MapPage from "./pages/map-page";
 import MeasurePage from "./pages/measure-page";
 import ManagePage from "./pages/manage-page";
 import UserManagementPage from "./pages/user-management-page";
-import RiskRegisterPage from "./pages/risk-register-page";
+// Risk Register page has been moved into Manage page as a feature tab
 import AdminPage from "./pages/admin-page";
 // Removed standalone Frontier Models page as it's now integrated in the Manage page
 import { ReactNode } from "react";
