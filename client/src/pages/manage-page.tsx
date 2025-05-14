@@ -3,12 +3,18 @@ import { TopNavbar } from '@/components/layout/top-navbar';
 import { FeatureTabs } from '@/components/layout/feature-tabs';
 import { ManageFeatures } from '@/types';
 import { FrontierModelsAlerts } from '@/components/manage/frontier-models-alerts';
+import { RiskRegister } from '@/components/manage/risk-register';
 
 const manageFeatures: ManageFeatures = {
   frontierModelAlerts: {
     id: 'frontier-alerts',
     name: 'Frontier Model Alerts',
     path: '/manage/frontier-alerts',
+  },
+  riskRegister: {
+    id: 'risk-register',
+    name: 'Risk Register',
+    path: '/manage/risk-register',
   },
   riskMitigations: {
     id: 'risk-mitigations',
@@ -56,13 +62,22 @@ export default function ManagePage() {
                     <FrontierModelsAlerts />
                   </div>
                 )}
+                {currentTab === manageFeatures.riskRegister.id && (
+                  <div>
+                    <div className="text-center py-4 mb-4">
+                      <h2 className="text-xl font-semibold">Risk Register</h2>
+                      <p className="mt-2 text-gray-600">
+                        Track and manage risks across your AI systems
+                      </p>
+                    </div>
+                    <RiskRegister />
+                  </div>
+                )}
                 {currentTab === manageFeatures.riskMitigations.id && (
                   <div className="text-center py-8">
                     <h2 className="text-xl font-semibold">Risk Mitigations</h2>
                     <p className="mt-2 text-gray-600">
-                      <a href="/risk-register" className="text-blue-600 hover:underline">
-                        View and manage risk mitigations across all systems
-                      </a>
+                      Manage risk mitigation plans and track progress
                     </p>
                     <div className="mt-6 max-w-4xl mx-auto">
                       <h3 className="text-lg font-medium mb-4 text-left">Recent Mitigations</h3>

@@ -30,6 +30,7 @@ export interface MeasureFeatures {
 
 export interface ManageFeatures {
   frontierModelAlerts: Feature;
+  riskRegister: Feature;
   riskMitigations: Feature;
 }
 
