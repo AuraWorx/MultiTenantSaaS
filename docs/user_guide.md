@@ -80,6 +80,28 @@ The AI Usage Finder helps identify AI systems across your organization.
 4. Click on a system to view details
 5. Click "Add to Inventory" to add a system to your tracked AI systems
 
+### Infrastructure Map
+
+The Infrastructure Map provides a visual representation of your organization's IT infrastructure with the AuraAI scanner at the center.
+
+**Key Features:**
+- Interactive visualization of your IT infrastructure components
+- Color-coded categories (on-premises, cloud, source control)
+- Draggable nodes for customizing the visualization layout
+- Animated connections between the AuraAI scanner and infrastructure items
+- Category count indicators showing inventory distribution
+- Reset layout button for returning to the default arrangement
+- Detailed information panel when clicking on specific nodes
+
+**To use the Infrastructure Map:**
+1. Navigate to Map > Infrastructure Map
+2. View the visualization with the AuraAI scanner at the center
+3. Hover over nodes to see item names and details
+4. Drag nodes to customize the visualization layout
+5. Click the Reset Layout button to return to the default arrangement
+6. Click on nodes to view detailed information about specific infrastructure items
+7. Use the animated effects to understand the relationships between components
+
 ### Use Case Database
 
 The Use Case Database maintains a catalog of AI use cases with detailed information.

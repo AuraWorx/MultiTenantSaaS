@@ -32,6 +32,7 @@ Detailed documentation is available in the `docs` directory:
 - [Development Guide](docs/development_guide.md) - Guide for local development setup
 - [User Guide](docs/user_guide.md) - End-user documentation for using the platform
 - [Frontier Models Guide](docs/frontier_models_guide.md) - Detailed guide on using the Frontier Models alerts feature
+- [Infrastructure Map Guide](docs/infrastructure_map_guide.md) - Guide for using the Infrastructure Map visualization
 - [Security Guide](docs/security.md) - Security features and best practices
 - [Roadmap](docs/roadmap.md) - Planned features and future enhancements
 
@@ -48,6 +49,7 @@ The platform is organized around three main modules:
 Discover and document AI systems throughout your organization:
 
 - **AI Usage Finder**: Discover and catalog AI/ML usage across your GitHub repositories
+- **Infrastructure Map**: Visualize your IT infrastructure with interactive, draggable nodes and AuraAI scanner at the center
 - **Use Case Database**: Maintain a database of AI use cases with detailed information
 - **CMDB Integration**: Connect with Configuration Management Database for AI asset tracking
 - **Risk Documentation**: Document and track AI-related risks and compliance requirements
