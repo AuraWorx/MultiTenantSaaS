@@ -566,3 +566,70 @@ export const insertInfraInventorySchema = createInsertSchema(infraInventory).omi
 
 export type InfraInventory = typeof infraInventory.$inferSelect;
 export type InsertInfraInventory = z.infer<typeof insertInfraInventorySchema>;
+
+// Prompt Answers for Incognito ChatGPT
+export const promptAnswers = pgTable("prompt_answers", {
+  id: serial("id").primaryKey(),
+  prompt: text("prompt").notNull(),
+  response: text("response").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const promptAnswersRelations = relations(promptAnswers, ({ one }) => ({
+  user: one(users, {
+    fields: [promptAnswers.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [promptAnswers.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const insertPromptAnswerSchema = createInsertSchema(promptAnswers).omit({
+  id: true,
+  created_at: true,
+});
+
+export type PromptAnswer = typeof promptAnswers.$inferSelect;
+export type InsertPromptAnswer = z.infer<typeof insertPromptAnswerSchema>;
+
+// Local Data Store for Incognito ChatGPT
+export const dataStoreFiles = pgTable("data_store_files", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  path: text("path").notNull(),
+  content: text("content").notNull(),
+  type: text("type").notNull(), // file or folder
+  userId: integer("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  parentId: integer("parent_id"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const dataStoreFilesRelations = relations(dataStoreFiles, ({ one, many }) => ({
+  user: one(users, {
+    fields: [dataStoreFiles.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [dataStoreFiles.organizationId],
+    references: [organizations.id],
+  }),
+  parent: one(dataStoreFiles, {
+    fields: [dataStoreFiles.parentId],
+    references: [dataStoreFiles.id],
+    relationName: "parent_child",
+  }),
+  children: many(dataStoreFiles, { relationName: "parent_child" }),
+}));
+
+export const insertDataStoreFileSchema = createInsertSchema(dataStoreFiles).omit({
+  id: true,
+  created_at: true,
+});
+
+export type DataStoreFile = typeof dataStoreFiles.$inferSelect;
+export type InsertDataStoreFile = z.infer<typeof insertDataStoreFileSchema>;

@@ -1,10 +1,12 @@
 import { 
   users, type User, type InsertUser, 
   roles, organizations, 
-  infraInventory, type InfraInventory, type InsertInfraInventory 
+  infraInventory, type InfraInventory, type InsertInfraInventory,
+  promptAnswers, type PromptAnswer, type InsertPromptAnswer,
+  dataStoreFiles, type DataStoreFile, type InsertDataStoreFile
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import createMemoryStore from "memorystore";
 import session from "express-session";
 
@@ -20,7 +22,7 @@ export interface IStorage {
     role: { id: number; name: string; permissions: string[] }; 
   } | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  sessionStore: session.SessionStore;
+  sessionStore: any; // session store type
   
   // InfraInventory methods
   getInfraInventory(organizationId: number): Promise<InfraInventory[]>;
@@ -28,10 +30,21 @@ export interface IStorage {
   createInfraInventory(item: InsertInfraInventory): Promise<InfraInventory>;
   updateInfraInventory(id: number, item: Partial<InsertInfraInventory>): Promise<InfraInventory | undefined>;
   deleteInfraInventory(id: number): Promise<boolean>;
+  
+  // ChatGPT Incognito methods
+  getPromptAnswers(userId: number): Promise<PromptAnswer[]>;
+  createPromptAnswer(promptAnswer: InsertPromptAnswer): Promise<PromptAnswer>;
+  
+  // Data Store Files methods
+  getDataStoreFiles(userId: number, parentId?: number): Promise<DataStoreFile[]>;
+  getDataStoreFileById(id: number): Promise<DataStoreFile | undefined>;
+  createDataStoreFile(file: InsertDataStoreFile): Promise<DataStoreFile>;
+  updateDataStoreFile(id: number, file: Partial<InsertDataStoreFile>): Promise<DataStoreFile | undefined>;
+  deleteDataStoreFile(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.SessionStore;
+  sessionStore: any; // Session store type
 
   constructor() {
     this.sessionStore = new MemoryStore({
@@ -160,6 +173,117 @@ export class DatabaseStorage implements IStorage {
       return true;
     } catch (error) {
       console.error("Error deleting infrastructure inventory item:", error);
+      return false;
+    }
+  }
+
+  // ChatGPT Incognito methods implementation
+  async getPromptAnswers(userId: number): Promise<PromptAnswer[]> {
+    try {
+      return await db
+        .select()
+        .from(promptAnswers)
+        .where(eq(promptAnswers.userId, userId))
+        .orderBy(promptAnswers.created_at);
+    } catch (error) {
+      console.error("Error getting prompt answers:", error);
+      return [];
+    }
+  }
+
+  async createPromptAnswer(answer: InsertPromptAnswer): Promise<PromptAnswer> {
+    try {
+      const [newAnswer] = await db
+        .insert(promptAnswers)
+        .values(answer)
+        .returning();
+      return newAnswer;
+    } catch (error) {
+      console.error("Error creating prompt answer:", error);
+      throw error;
+    }
+  }
+
+  // Data Store Files methods implementation
+  async getDataStoreFiles(userId: number, parentId?: number): Promise<DataStoreFile[]> {
+    try {
+      if (parentId) {
+        return await db
+          .select()
+          .from(dataStoreFiles)
+          .where(
+            and(
+              eq(dataStoreFiles.userId, userId),
+              eq(dataStoreFiles.parentId, parentId)
+            )
+          )
+          .orderBy(dataStoreFiles.name);
+      } else {
+        return await db
+          .select()
+          .from(dataStoreFiles)
+          .where(
+            and(
+              eq(dataStoreFiles.userId, userId),
+              isNull(dataStoreFiles.parentId)
+            )
+          )
+          .orderBy(dataStoreFiles.name);
+      }
+    } catch (error) {
+      console.error("Error getting data store files:", error);
+      return [];
+    }
+  }
+
+  async getDataStoreFileById(id: number): Promise<DataStoreFile | undefined> {
+    try {
+      const [file] = await db
+        .select()
+        .from(dataStoreFiles)
+        .where(eq(dataStoreFiles.id, id));
+      return file;
+    } catch (error) {
+      console.error("Error getting data store file:", error);
+      return undefined;
+    }
+  }
+
+  async createDataStoreFile(file: InsertDataStoreFile): Promise<DataStoreFile> {
+    try {
+      const [newFile] = await db
+        .insert(dataStoreFiles)
+        .values(file)
+        .returning();
+      return newFile;
+    } catch (error) {
+      console.error("Error creating data store file:", error);
+      throw error;
+    }
+  }
+
+  async updateDataStoreFile(id: number, file: Partial<InsertDataStoreFile>): Promise<DataStoreFile | undefined> {
+    try {
+      const [updatedFile] = await db
+        .update(dataStoreFiles)
+        .set(file)
+        .where(eq(dataStoreFiles.id, id))
+        .returning();
+      return updatedFile;
+    } catch (error) {
+      console.error("Error updating data store file:", error);
+      return undefined;
+    }
+  }
+
+  async deleteDataStoreFile(id: number): Promise<boolean> {
+    try {
+      await db
+        .delete(dataStoreFiles)
+        .where(eq(dataStoreFiles.id, id));
+      return true;
+    } catch (error) {
+      console.error("Error deleting data store file:", error);
       return false;
     }
   }
