@@ -174,56 +174,6 @@ export function Sidebar() {
           </div>
         )}
         
-        {/* Auto-hide toggle removed as requested */}
-        
-        {/* User and Logout at the top after the organization selector */}
-        <div className="border-b border-border">
-          <div className={cn(
-            "flex flex-col px-4 py-3 space-y-2",
-            isCollapsed && "items-center px-2"
-          )}>
-            {!isCollapsed ? (
-              <>
-                <div className="flex items-center">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
-                    <AvatarFallback>
-                      {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="ml-3 min-w-0 flex-1">
-                    <div className="text-sm font-medium text-foreground truncate">
-                      {user?.firstName && user?.lastName 
-                        ? `${user.firstName} ${user.lastName}`
-                        : user?.username || 'User'}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">{user?.email || ''}</div>
-                    <div className="text-xs text-muted-foreground truncate">{user?.role?.name || ''}</div>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-muted-foreground hover:text-foreground hover:bg-muted w-full justify-start"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="ghost" 
-                size="icon"
-                onClick={() => logoutMutation.mutate()}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted"
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
-        </div>
-        
         {/* Navigation */}
         <nav className="px-2 py-4 space-y-4 flex-grow">
           {navItems.map((section, idx) => (
@@ -256,33 +206,85 @@ export function Sidebar() {
           ))}
         </nav>
         
-        {/* Toggle button at the bottom of the sidebar */}
-        <div className="border-t border-border mt-auto">
+        {/* Admin User, Logout and Collapse Sidebar at the bottom */}
+        <div className="mt-auto border-t border-border">
+          {/* Admin User info */}
           <div className={cn(
-            "flex flex-col px-4 py-3 space-y-2",
-            isCollapsed && "items-center px-2"
+            "px-4 py-3",
+            isCollapsed && "flex justify-center"
           )}>
             {!isCollapsed ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Collapse Sidebar</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setIsCollapsed(!isCollapsed)}
-                  className="hover:bg-muted"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
+                  <AvatarFallback>
+                    {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="ml-3 min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground truncate">
+                    Admin User
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">admin@aura.ai</div>
+                </div>
               </div>
             ) : (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="hover:bg-muted"
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
+                <AvatarFallback>
+                  {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
+          
+          {/* Logout */}
+          <div className={cn(
+            "px-2 pt-1 pb-2",
+            isCollapsed && "flex justify-center"
+          )}>
+            {!isCollapsed ? (
+              <Link href="#">
+                <div 
+                  className="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md"
+                  onClick={() => logoutMutation.mutate()}
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="truncate ml-3">Logout</span>
+                </div>
+              </Link>
+            ) : (
+              <div 
+                className="flex items-center justify-center p-2 text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md cursor-pointer"
+                onClick={() => logoutMutation.mutate()}
               >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
+                <LogOut className="h-5 w-5" />
+              </div>
+            )}
+          </div>
+          
+          {/* Collapse Sidebar */}
+          <div className={cn(
+            "px-2 pb-3",
+            isCollapsed && "flex justify-center"
+          )}>
+            {!isCollapsed ? (
+              <Link href="#">
+                <div 
+                  className="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md"
+                  onClick={() => setIsCollapsed(true)}
+                >
+                  <PanelLeftClose className="h-5 w-5" />
+                  <span className="truncate ml-3">Collapse Sidebar</span>
+                </div>
+              </Link>
+            ) : (
+              <div 
+                className="flex items-center justify-center p-2 text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md cursor-pointer"
+                onClick={() => setIsCollapsed(false)}
+              >
+                <PanelLeft className="h-5 w-5" />
+              </div>
             )}
           </div>
         </div>
