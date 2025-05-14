@@ -220,10 +220,10 @@ export function Sidebar() {
         {/* Logout button (moved to bottom) */}
         <div className="border-t border-border mt-auto">
           <div className={cn(
-            "flex items-center justify-between px-4 py-3",
-            isCollapsed && "justify-center px-2"
+            "flex flex-col px-4 py-3 space-y-2",
+            isCollapsed && "items-center px-2"
           )}>
-            {!isCollapsed && (
+            {!isCollapsed ? (
               <>
                 <div className="flex items-center">
                   <Avatar className="h-10 w-10">
@@ -242,17 +242,26 @@ export function Sidebar() {
                     <div className="text-xs text-muted-foreground truncate">{user?.role?.name || ''}</div>
                   </div>
                 </div>
+                <Button
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => logoutMutation.mutate()}
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted w-full justify-start"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
               </>
+            ) : (
+              <Button
+                variant="ghost" 
+                size="icon"
+                onClick={() => logoutMutation.mutate()}
+                className="text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <LogOut className="w-5 h-5" />
+              </Button>
             )}
-            <Button
-              variant="ghost" 
-              size={isCollapsed ? "icon" : "sm"}
-              onClick={() => logoutMutation.mutate()}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted"
-            >
-              <LogOut className="w-5 h-5" />
-              {!isCollapsed && <span className="ml-2">Logout</span>}
-            </Button>
           </div>
         </div>
       </div>
