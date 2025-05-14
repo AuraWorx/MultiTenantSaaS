@@ -20,6 +20,7 @@ import UserManagementPage from "./pages/user-management-page";
 // Risk Register page has been moved into Manage page as a feature tab
 import AdminPage from "./pages/admin-page";
 // Removed standalone Frontier Models page as it's now integrated in the Manage page
+import IncognitoChatPage from "./pages/incognito-chat-page";
 import { ReactNode } from "react";
 
 // Theme toggle button
@@ -98,6 +99,11 @@ function Router() {
       <ProtectedRoute path="/admin" component={() => (
         <AppLayout>
           <AdminPage />
+        </AppLayout>
+      )} />
+      <ProtectedRoute path="/incognito-chat" component={() => (
+        <AppLayout>
+          <IncognitoChatPage />
         </AppLayout>
       )} />
       {/* Removed Frontier Models route as it's now integrated into the Manage page */}
