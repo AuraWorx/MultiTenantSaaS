@@ -5,6 +5,7 @@ import { AIUsageFinder } from '@/components/map/ai-usage-finder';
 import { UseCaseDatabase } from '@/components/map/use-case-database';
 import { CMDBIntegration } from '@/components/map/cmdb-integration';
 import { RiskDocumentation } from '@/components/map/risk-documentation';
+import Visualize from '@/components/map/visualize';
 import { MapFeatures } from '@/types';
 
 const mapFeatures: MapFeatures = {
@@ -12,6 +13,11 @@ const mapFeatures: MapFeatures = {
     id: 'ai-usage-finder',
     name: 'AI Usage Finder',
     path: '/map/ai-usage-finder',
+  },
+  visualize: {
+    id: 'visualize',
+    name: 'Visualize',
+    path: '/map/visualize',
   },
   useCaseDatabase: {
     id: 'use-case-db',
@@ -59,6 +65,7 @@ export default function MapPage() {
             ) : (
               <>
                 {currentTab === mapFeatures.aiUsageFinder.id && <AIUsageFinder />}
+                {currentTab === mapFeatures.visualize.id && <Visualize />}
                 {currentTab === mapFeatures.useCaseDatabase.id && <UseCaseDatabase />}
                 {currentTab === mapFeatures.cmdbIntegration.id && <CMDBIntegration />}
                 {currentTab === mapFeatures.riskDocumentation.id && <RiskDocumentation />}

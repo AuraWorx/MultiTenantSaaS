@@ -1915,6 +1915,238 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return results;
   }
 
+  // Infrastructure Inventory endpoints
+  // Get all infrastructure inventory items for the organization
+  app.get("/api/infra-inventory", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const items = await storage.getInfraInventory(organizationId);
+      res.status(200).json(items);
+    } catch (error) {
+      console.error("Error getting infrastructure inventory:", error);
+      res.status(500).json({ 
+        message: "Failed to get infrastructure inventory", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get a specific infrastructure inventory item
+  app.get("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const item = await storage.getInfraInventoryById(id);
+      
+      if (!item) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      res.status(200).json(item);
+    } catch (error) {
+      console.error("Error getting infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to get infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Create a new infrastructure inventory item
+  app.post("/api/infra-inventory", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const userId = user.id;
+      
+      // Validate request data
+      const validatedData = insertInfraInventorySchema.parse({
+        ...req.body,
+        organizationId,
+        createdById: userId
+      });
+      
+      const newItem = await storage.createInfraInventory(validatedData);
+      res.status(201).json(newItem);
+    } catch (error) {
+      console.error("Error creating infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to create infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update an existing infrastructure inventory item
+  app.put("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      // First check if the item exists and belongs to the user's organization
+      const existingItem = await storage.getInfraInventoryById(id);
+      if (!existingItem) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      if (existingItem.organizationId !== organizationId) {
+        return res.status(403).json({ message: "You don't have permission to update this item" });
+      }
+      
+      // Update the item
+      const updatedItem = await storage.updateInfraInventory(id, req.body);
+      res.status(200).json(updatedItem);
+    } catch (error) {
+      console.error("Error updating infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to update infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Delete an infrastructure inventory item
+  app.delete("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      // First check if the item exists and belongs to the user's organization
+      const existingItem = await storage.getInfraInventoryById(id);
+      if (!existingItem) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      if (existingItem.organizationId !== organizationId) {
+        return res.status(403).json({ message: "You don't have permission to delete this item" });
+      }
+      
+      // Delete the item
+      const success = await storage.deleteInfraInventory(id);
+      if (success) {
+        res.status(200).json({ message: "Infrastructure inventory item deleted successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to delete infrastructure inventory item" });
+      }
+    } catch (error) {
+      console.error("Error deleting infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to delete infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Seed initial infrastructure inventory data for the organization
+  app.post("/api/infra-inventory/seed", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const userId = user.id;
+      
+      // Sample dataset with icons
+      const sampleData = [
+        {
+          label: "Linux On-Prem",
+          category: "onprem",
+          provider: null,
+          count: 3,
+          icon: "linux",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "Windows On-Prem",
+          category: "onprem",
+          provider: null,
+          count: 5,
+          icon: "windows",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "AWS EC2",
+          category: "cloud",
+          provider: "aws",
+          count: 20,
+          icon: "cloud-aws",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "Azure App Instances",
+          category: "cloud",
+          provider: "azure",
+          count: 5,
+          icon: "cloud-azure",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "GitHub Repositories",
+          category: "sourcecontrol",
+          provider: "github",
+          count: 30,
+          icon: "github",
+          organizationId,
+          createdById: userId
+        }
+      ];
+      
+      // First check if there's already data for this organization
+      const existingItems = await storage.getInfraInventory(organizationId);
+      if (existingItems.length > 0) {
+        return res.status(200).json({ 
+          message: "Infrastructure inventory already has data", 
+          items: existingItems 
+        });
+      }
+      
+      // Create all the items
+      const createdItems = [];
+      for (const item of sampleData) {
+        const newItem = await storage.createInfraInventory(item);
+        createdItems.push(newItem);
+      }
+      
+      res.status(201).json({
+        message: "Sample infrastructure inventory data created successfully",
+        items: createdItems
+      });
+    } catch (error) {
+      console.error("Error seeding infrastructure inventory data:", error);
+      res.status(500).json({ 
+        message: "Failed to seed infrastructure inventory data", 
+        error: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // Frontier Models endpoints

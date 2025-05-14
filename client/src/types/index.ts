@@ -13,6 +13,7 @@ export type Feature = {
 
 export interface MapFeatures {
   aiUsageFinder: Feature;
+  visualize: Feature;
   useCaseDatabase: Feature;
   cmdbIntegration: Feature;
   riskDocumentation: Feature;
