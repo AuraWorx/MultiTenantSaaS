@@ -1,4 +1,8 @@
-import { users, type User, type InsertUser, roles, organizations } from "@shared/schema";
+import { 
+  users, type User, type InsertUser, 
+  roles, organizations, 
+  infraInventory, type InfraInventory, type InsertInfraInventory 
+} from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import createMemoryStore from "memorystore";

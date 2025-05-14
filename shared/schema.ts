@@ -122,6 +122,7 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   riskItems: many(riskItems),
   riskMitigations: many(riskMitigations),
   complianceIssues: many(complianceIssues),
+  infraInventory: many(infraInventory),
 }));
 
 export const usersRelations = relations(users, ({ one }) => ({
@@ -527,3 +528,41 @@ export type InsertFrontierModelsAlertsConfig = z.infer<typeof insertFrontierMode
 
 export type FrontierModelsAlert = typeof frontierModelsAlerts.$inferSelect;
 export type InsertFrontierModelsAlert = z.infer<typeof insertFrontierModelsAlertsSchema>;
+
+// Infrastructure Inventory for Visualization
+export const infraInventory = pgTable("infra_inventory", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  category: text("category").notNull(), // onprem, cloud, sourcecontrol, etc.
+  provider: text("provider"), // aws, azure, github, etc. (nullable)
+  count: integer("count").notNull().default(0),
+  icon: text("icon").notNull(), // Icon identifier for visualization
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  createdById: integer("created_by_id")
+    .references(() => users.id)
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const infraInventoryRelations = relations(infraInventory, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [infraInventory.organizationId],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [infraInventory.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const insertInfraInventorySchema = createInsertSchema(infraInventory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export type InfraInventory = typeof infraInventory.$inferSelect;
+export type InsertInfraInventory = z.infer<typeof insertInfraInventorySchema>;
