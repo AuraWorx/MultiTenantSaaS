@@ -481,6 +481,130 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication endpoints
   setupAuth(app);
+  
+  // Mock Chat API for Incognito ChatGPT
+  app.post("/api/mock-chat", isAuthenticated, async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      const user = req.user;
+      
+      if (!prompt || !user) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      // Create a mock response
+      const mockResponse = "I am currently being built, wait for reliable answers!";
+      
+      // Store the prompt and response
+      const promptAnswer = await storage.createPromptAnswer({
+        prompt,
+        response: mockResponse,
+        userId: user.id,
+        organizationId
+      });
+      
+      return res.status(200).json(promptAnswer);
+    } catch (error) {
+      console.error("Mock chat error:", error);
+      return res.status(500).json({ error: "Failed to process chat request" });
+    }
+  });
+  
+  // Data Store Files API for Incognito ChatGPT
+  app.get("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const parentId = req.query.parentId ? parseInt(req.query.parentId as string) : undefined;
+      
+      const files = await storage.getDataStoreFiles(user.id, parentId);
+      return res.status(200).json(files);
+    } catch (error) {
+      console.error("Data store files error:", error);
+      return res.status(500).json({ error: "Failed to get data store files" });
+    }
+  });
+  
+  app.post("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const { name, path, content, type, parentId } = req.body;
+      
+      if (!name || !type) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const file = await storage.createDataStoreFile({
+        name,
+        path: path || name,
+        content: content || "",
+        type,
+        userId: user.id,
+        organizationId,
+        parentId
+      });
+      
+      return res.status(201).json(file);
+    } catch (error) {
+      console.error("Create data store file error:", error);
+      return res.status(500).json({ error: "Failed to create data store file" });
+    }
+  });
+  
+  app.put("/api/data-store/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const fileData = req.body;
+      
+      const file = await storage.updateDataStoreFile(id, fileData);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error("Update data store file error:", error);
+      return res.status(500).json({ error: "Failed to update data store file" });
+    }
+  });
+  
+  app.delete("/api/data-store/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const success = await storage.deleteDataStoreFile(id);
+      if (!success) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete data store file error:", error);
+      return res.status(500).json({ error: "Failed to delete data store file" });
+    }
+  });
 
   // Dashboard data
   app.get("/api/dashboard", isAuthenticated, async (req, res) => {
