@@ -213,6 +213,14 @@ The database schema has been enhanced with the following features:
    - Color-coded alerts by category (security, feature, compliance, ethics)
    - Integration with the Manage page for full alert history and configuration
 
+4. **Infrastructure Map**:
+   - `infra_inventory` table for tracking IT infrastructure 
+   - Visual representation of infrastructure components with AuraAI scanner at the center
+   - Interactive canvas with draggable nodes
+   - Color-coded categories (on-premises, cloud, source control)
+   - Count indicators for each infrastructure category
+   - Reset layout functionality with animation effects
+
 After cloning or pulling the latest code, ensure you run:
 
 ```bash
@@ -229,3 +237,4 @@ For detailed feature documentation, see:
 - [Database Schema](./docs/database_schema.md) - Database structure and relationships
 - [Frontier Models Guide](./docs/frontier_models_guide.md) - Detailed guide for the Frontier Models feature
 - [Risk Register Guide](./docs/risk_register_guide.md) - Information on using the Risk Register
+- [Infrastructure Map Guide](./docs/infrastructure_map_guide.md) - Guide for the Infrastructure Map visualization

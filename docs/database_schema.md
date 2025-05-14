@@ -158,6 +158,7 @@ Table: `bias_analysis_results`
 - One organization has many compliance issues
 - One organization has many GitHub scan configs
 - One organization has many bias analysis scans
+- One organization has many infrastructure inventory items
 
 ### User Relations
 - One user belongs to one organization
@@ -165,6 +166,7 @@ Table: `bias_analysis_results`
 - One user can own many AI systems
 - One user can own many risk items
 - One user can create many bias analysis scans
+- One user can create many infrastructure inventory items
 
 ### AI System Relations
 - One AI system belongs to one organization
@@ -228,6 +230,21 @@ Table: `frontier_models_alerts`
 - `organization_id`: Integer, Foreign Key to organizations.id
 - `created_at`: Timestamp with timezone
 
+## Infrastructure Inventory
+
+### Infrastructure Items
+Table: `infra_inventory`
+- `id`: Serial, Primary Key
+- `label`: Text, Display name of the infrastructure item
+- `category`: Text, Category type ('onprem', 'cloud', 'sourcecontrol')
+- `provider`: Text, Nullable, Provider or vendor name
+- `count`: Integer, Number of resources in this category
+- `icon`: Text, Icon identifier for visualization
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
 ## Frontier Models Relations
 - One frontier model can have many alert configurations
 - One alert configuration belongs to one frontier model
@@ -236,6 +253,10 @@ Table: `frontier_models_alerts`
 - One alert configuration can have many alerts
 - One alert belongs to one alert configuration
 - One alert belongs to one organization
+
+## Infrastructure Inventory Relations
+- One infrastructure item belongs to one organization
+- One infrastructure item is created by one user
 
 ## Schema Creation and Updates
 

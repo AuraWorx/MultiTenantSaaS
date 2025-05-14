@@ -10,6 +10,7 @@ This guide provides instructions on how to use the AI Governance Platform, a com
   - [Navigation](#navigation)
 - [Map Module](#map-module)
   - [AI Usage Finder](#ai-usage-finder)
+  - [Infrastructure Map](#infrastructure-map)
   - [Use Case Database](#use-case-database)
   - [CMDB Integration](#cmdb-integration)
   - [Risk Documentation](#risk-documentation)
