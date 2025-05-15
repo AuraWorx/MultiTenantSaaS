@@ -519,14 +519,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const promptAnswer = await storage.createPromptAnswer({
         prompt,
         response,
-        userId: user.id,
+        userId: typeof user.id === 'number' ? user.id : 
+                (user as any).id || 1, // Fallback user ID if type issues
         organizationId
       });
       
       return res.status(200).json(promptAnswer);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Chat API error:", error);
-      return res.status(500).json({ error: "Failed to process chat request: " + (error.message || "Unknown error") });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ error: `Failed to process chat request: ${errorMessage}` });
     }
   });
   

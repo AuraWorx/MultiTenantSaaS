@@ -32,6 +32,7 @@ type Message = {
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
+  isLoading?: boolean;
 };
 
 type DataStoreFile = {
@@ -47,7 +48,7 @@ export default function IncognitoChatPage() {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([
     { 
-      content: "Hello! I'm the Incognito ChatGPT assistant. How can I help you today?", 
+      content: "Hello! I'm the Incognito ChatGPT assistant powered by OpenAI's GPT-4o model. How can I help you today?", 
       role: 'assistant', 
       timestamp: new Date() 
     }
@@ -97,22 +98,48 @@ export default function IncognitoChatPage() {
         requestBody.fileId = selectedFile.id;
       }
       
-      const res = await apiRequest('POST', '/api/mock-chat', requestBody);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Add assistant message with the response
+      // Add a temporary "thinking" message
       setMessages(prev => [
         ...prev,
         {
+          content: "Thinking...",
+          role: 'assistant',
+          timestamp: new Date(),
+          isLoading: true
+        }
+      ]);
+      
+      const res = await apiRequest('POST', '/api/chat', requestBody);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      // Remove the temporary thinking message and add the real response
+      setMessages(prev => {
+        const newMessages = [...prev];
+        // Remove the last message if it was a loading message
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].isLoading) {
+          newMessages.pop();
+        }
+        // Add the actual response
+        newMessages.push({
           content: data.response,
           role: 'assistant',
           timestamp: new Date()
-        }
-      ]);
+        });
+        return newMessages;
+      });
       setPrompt('');
     },
     onError: (error) => {
+      // Remove the temporary thinking message
+      setMessages(prev => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].isLoading) {
+          newMessages.pop();
+        }
+        return newMessages;
+      });
+      
       toast({
         title: 'Error sending message',
         description: error instanceof Error ? error.message : 'Something went wrong',
@@ -161,6 +188,9 @@ export default function IncognitoChatPage() {
     
     // Send to API
     sendMessageMutation.mutate(prompt);
+    
+    // Save to prompt_answers table (this happens in the backend automatically)
+    // The API will save both the prompt and the response
   };
   
   const handleCreateFile = () => {
@@ -296,7 +326,12 @@ export default function IncognitoChatPage() {
             <CardHeader className="px-4 py-3 border-b">
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-xl">Chat</CardTitle>
+                  <CardTitle className="text-xl flex items-center">
+                    Chat
+                    <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full">
+                      GPT-4o
+                    </span>
+                  </CardTitle>
                   <CardDescription>
                     {selectedFile ? (
                       <span className="flex items-center">
@@ -339,7 +374,14 @@ export default function IncognitoChatPage() {
                             : "bg-muted"
                         )}
                       >
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        {message.isLoading ? (
+                          <div className="flex items-center">
+                            <span className="mr-2">{message.content}</span>
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        )}
                         <p className="text-xs opacity-70 mt-1">
                           {message.timestamp.toLocaleTimeString()}
                         </p>
