@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, ChangeEvent } from 'react';
 import { TopNavbar } from '@/components/layout/top-navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Send, Folder, FolderPlus, FileText, Upload, RefreshCw } from 'lucide-react';
+import { Loader2, Send, Folder, FolderPlus, FileText, Upload, RefreshCw, Trash2 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 
@@ -58,8 +58,19 @@ export default function IncognitoChatPage() {
   const [newFileName, setNewFileName] = useState('');
   const [newFileContent, setNewFileContent] = useState('');
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = useState(false);
+  
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsNewFileDialogOpen(open);
+    // Clear the form when closing the dialog
+    if (!open) {
+      setNewFileName('');
+      setNewFileContent('');
+      setUploadedFile(null);
+    }
+  };
   const [newFileType, setNewFileType] = useState<'file' | 'folder'>('file');
   const [selectedFile, setSelectedFile] = useState<DataStoreFile | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -203,13 +214,68 @@ export default function IncognitoChatPage() {
       return;
     }
     
-    createFileMutation.mutate({
-      name: newFileName,
-      content: newFileContent,
-      type: newFileType,
-      parentId: currentFolder
-    });
+    // If we have an uploaded file, read its contents
+    if (uploadedFile && newFileType === 'file') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string || '';
+        createFileMutation.mutate({
+          name: newFileName || uploadedFile.name,
+          content: content,
+          type: 'file',
+          parentId: currentFolder
+        });
+      };
+      reader.readAsText(uploadedFile);
+    } else {
+      createFileMutation.mutate({
+        name: newFileName,
+        content: newFileContent,
+        type: newFileType,
+        parentId: currentFolder
+      });
+    }
   };
+  
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      setUploadedFile(files[0]);
+      setNewFileName(files[0].name);
+    }
+  };
+  
+  // Clear all temporary files and chat history
+  const clearAllData = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('DELETE', '/api/data-store');
+      return res.json();
+    },
+    onSuccess: () => {
+      setMessages([
+        { 
+          content: "Hello! I'm the Incognito ChatGPT assistant. How can I help you today?", 
+          role: 'assistant', 
+          timestamp: new Date() 
+        }
+      ]);
+      if (selectedFile) {
+        setSelectedFile(null);
+      }
+      refetchFiles();
+      toast({
+        title: 'Chat cleared',
+        description: 'All chat history and temporary files have been deleted.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error clearing data',
+        description: error instanceof Error ? error.message : 'Failed to clear data',
+        variant: 'destructive'
+      });
+    }
+  });
   
   const handleFileClick = (file: DataStoreFile) => {
     if (file.type === 'folder') {
@@ -343,21 +409,15 @@ export default function IncognitoChatPage() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => {
-                    setMessages([
-                      { 
-                        content: "Hello! I'm the Incognito ChatGPT assistant. How can I help you today?", 
-                        role: 'assistant', 
-                        timestamp: new Date() 
-                      }
-                    ]);
-                    if (selectedFile) {
-                      setSelectedFile(null);
-                    }
-                  }}
+                  onClick={() => clearAllData.mutate()}
+                  disabled={clearAllData.isPending}
                 >
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Clear Chat
+                  {clearAllData.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
+                  Clear All Data
                 </Button>
                 {selectedFile && (
                   <Button 
@@ -468,18 +528,37 @@ export default function IncognitoChatPage() {
             </div>
             
             {newFileType === 'file' && (
-              <div className="space-y-2">
-                <label htmlFor="content" className="text-sm font-medium">
-                  Content
-                </label>
-                <textarea
-                  id="content"
-                  placeholder="File content"
-                  value={newFileContent}
-                  onChange={(e) => setNewFileContent(e.target.value)}
-                  className="w-full h-32 px-3 py-2 border rounded-md"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="fileUpload" className="text-sm font-medium">
+                    Upload File
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="fileUpload"
+                      type="file"
+                      onChange={handleFileUpload}
+                      className="flex-1"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Upload a file or enter content manually below
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="content" className="text-sm font-medium">
+                    Content
+                  </label>
+                  <textarea
+                    id="content"
+                    placeholder={uploadedFile ? "Content will be loaded from uploaded file" : "Enter file content"}
+                    value={newFileContent}
+                    onChange={(e) => setNewFileContent(e.target.value)}
+                    className="w-full h-32 px-3 py-2 border rounded-md"
+                    disabled={!!uploadedFile}
+                  />
+                </div>
+              </>
             )}
           </div>
           
