@@ -1,15 +1,18 @@
 #!/bin/bash
 
+# Ensure the script stops on first error
+set -e
+
 # Define log file and database connection
 LOG_FILE="./auraai-app.log"
 
 # Use DATABASE_URL from environment if set, otherwise use default
 if [ -z "$DATABASE_URL" ]; then
-  DB_URL="postgresql://postgres:postgres@localhost:5432/auraai"
-  echo "DATABASE_URL not set. Using default database URL: $DB_URL"
+  # Default database URL for AuraAI
+  export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ai_governance"
+  echo "DATABASE_URL not set. Using default database URL: $DATABASE_URL"
 else
-  DB_URL="$DATABASE_URL"
-  echo "Using DATABASE_URL from environment: $DB_URL"
+  echo "Using DATABASE_URL from environment: $DATABASE_URL"
 fi
 
 # Create log file or clear it if it exists
@@ -19,56 +22,95 @@ echo "----------------------------------------" >> $LOG_FILE
 
 # Check if PostgreSQL is running
 if systemctl is-active --quiet postgresql; then
-  echo "PostgreSQL is running." >> $LOG_FILE
+  echo "PostgreSQL is running." | tee -a $LOG_FILE
 else
-  echo "PostgreSQL is not running. Starting PostgreSQL..." >> $LOG_FILE
+  echo "PostgreSQL is not running. Starting PostgreSQL..." | tee -a $LOG_FILE
   sudo systemctl start postgresql >> $LOG_FILE 2>&1
   
   if [ $? -ne 0 ]; then
-    echo "Failed to start PostgreSQL. Make sure it's installed." >> $LOG_FILE
+    echo "Failed to start PostgreSQL. Make sure it's installed." | tee -a $LOG_FILE
     exit 1
   fi
   
-  echo "PostgreSQL started successfully." >> $LOG_FILE
+  echo "PostgreSQL started successfully." | tee -a $LOG_FILE
 fi
 
-# Export environment variables
-export DATABASE_URL=$DB_URL
+# Set environment variables
 export NODE_ENV=production
-
-echo "Setting DATABASE_URL=$DB_URL" >> $LOG_FILE
 echo "Setting NODE_ENV=production" >> $LOG_FILE
+echo "Using DATABASE_URL=$DATABASE_URL" >> $LOG_FILE
 
-# Navigate to the application directory (change this path to where your app is located)
-# APP_DIR="/path/to/your/auraai-app"
-# cd $APP_DIR
+# Set GitHub API key if available
+if [ ! -z "$GITHUB_API_KEY" ]; then
+  echo "Using provided GITHUB_API_KEY" >> $LOG_FILE
+else
+  echo "Warning: GITHUB_API_KEY not set. GitHub scanning features may be limited." | tee -a $LOG_FILE
+fi
 
-# Database migration and seeding
-echo "Running database seeding script..." >> $LOG_FILE
+echo "⏳ Database setup and seeding starting..." | tee -a $LOG_FILE
+
+# First, run the schema migration with Drizzle
+echo "Running database schema migration..." | tee -a $LOG_FILE
 npm run db:push >> $LOG_FILE 2>&1
 
-# Check if seeding was successful
 if [ $? -ne 0 ]; then
-  echo "Database seeding failed. See log for details." >> $LOG_FILE
-  # Attempt fallback seed script
-  echo "Attempting fallback seed..." >> $LOG_FILE
-  ./seed-db.sh >> $LOG_FILE 2>&1
+  echo "❌ Database schema migration failed. Check the logs for details." | tee -a $LOG_FILE
+  exit 1
 else
-  echo "Database seeding completed successfully." >> $LOG_FILE
+  echo "✅ Database schema migration completed successfully." | tee -a $LOG_FILE
 fi
 
+# Now run the seeder script to populate the database
+echo "Running database seeding script..." | tee -a $LOG_FILE
+
+# Detect if running locally (we are)
+echo "Running in local environment, using node with pg client..." >> $LOG_FILE
+
+# Check if pg module is installed
+if ! npm list pg >/dev/null 2>&1; then
+  echo "Installing pg module temporarily..." >> $LOG_FILE
+  npm install --no-save pg >> $LOG_FILE 2>&1
+fi
+
+# Try standard seeder first, if it fails, try fallback seeder
+if node local-seed.js >> $LOG_FILE 2>&1; then
+  echo "✅ Standard seeder ran successfully." | tee -a $LOG_FILE
+else
+  echo "⚠️ Standard seeder failed, trying fallback seeder..." | tee -a $LOG_FILE
+  if node --experimental-modules scripts/fallback-seed.js >> $LOG_FILE 2>&1; then
+    echo "✅ Fallback seeder ran successfully." | tee -a $LOG_FILE
+  else
+    echo "❌ All seeding attempts failed. Check the logs for details." | tee -a $LOG_FILE
+    exit 1
+  fi
+fi
+
+echo "✅ Database setup complete!" | tee -a $LOG_FILE
+
 # Start the application with nohup to keep it running after terminal closes
-echo "Starting AuraAI application..." >> $LOG_FILE
+echo "Starting AuraAI application..." | tee -a $LOG_FILE
 nohup npm run start >> $LOG_FILE 2>&1 &
 
 # Save the process ID so we can stop it later if needed
 echo $! > ./auraai-app.pid
-echo "Application started with PID $(cat ./auraai-app.pid)" >> $LOG_FILE
-echo "Application logs are being written to $LOG_FILE" >> $LOG_FILE
-echo "To stop the application, run: kill $(cat ./auraai-app.pid)" >> $LOG_FILE
+echo "✅ Application started with PID $(cat ./auraai-app.pid)" | tee -a $LOG_FILE
+echo "✅ Application logs are being written to $LOG_FILE" | tee -a $LOG_FILE
+
+# Print login credentials for reference
+echo -e "\nSample Login Credentials:" | tee -a $LOG_FILE
+echo "----------------------------------" | tee -a $LOG_FILE
+echo "Admin User:" | tee -a $LOG_FILE
+echo "  Username: admin" | tee -a $LOG_FILE
+echo "  Password: adminpassword" | tee -a $LOG_FILE
+echo "" | tee -a $LOG_FILE
+echo "Demo User:" | tee -a $LOG_FILE
+echo "  Username: demo_user" | tee -a $LOG_FILE
+echo "  Password: demopassword" | tee -a $LOG_FILE
+echo "----------------------------------" | tee -a $LOG_FILE
 
 # Output summary to terminal
-echo "AuraAI application started in background mode."
-echo "PID: $(cat ./auraai-app.pid)"
-echo "Logs: $LOG_FILE"
-echo "To monitor logs in real-time, run: tail -f $LOG_FILE"
+echo -e "\n✨ AuraAI application is now running in background mode."
+echo "🔄 PID: $(cat ./auraai-app.pid)"
+echo "📝 Logs: $LOG_FILE"
+echo "👀 To monitor logs in real-time, run: tail -f $LOG_FILE"
+echo "🛑 To stop the application, run: ./stop-auraai.sh"

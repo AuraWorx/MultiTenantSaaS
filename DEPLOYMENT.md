@@ -30,9 +30,9 @@ sudo systemctl start postgresql
 Create a database for the application:
 
 ```bash
-sudo -u postgres psql -c "CREATE DATABASE auraai;"
+sudo -u postgres psql -c "CREATE DATABASE ai_governance;"
 sudo -u postgres psql -c "CREATE USER auraaiuser WITH PASSWORD 'your_password';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE auraai TO auraaiuser;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ai_governance TO auraaiuser;"
 ```
 
 ### Starting the Application
@@ -40,7 +40,8 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE auraai TO auraaiuser;
 The start script handles:
 - PostgreSQL service verification
 - Database connection setup
-- Automatic seeding of the database
+- Database schema migration with Drizzle
+- Complete data seeding with sample organizations, users, and AI systems
 - Running the application in the background
 - Logging all output to a file
 
@@ -51,16 +52,24 @@ To start the application:
 ./start-auraai.sh
 
 # Option 2: Specify a custom database URL
-DATABASE_URL="postgresql://auraaiuser:your_password@localhost:5432/auraai" ./start-auraai.sh
+DATABASE_URL="postgresql://auraaiuser:your_password@localhost:5432/ai_governance" ./start-auraai.sh
+
+# Option 3: Include GitHub API key for repository scanning features
+GITHUB_API_KEY="your_github_api_key" ./start-auraai.sh
+
+# Option 4: Combine both custom database and GitHub API key
+DATABASE_URL="postgresql://auraaiuser:your_password@localhost:5432/ai_governance" GITHUB_API_KEY="your_github_api_key" ./start-auraai.sh
 ```
 
 The script will:
 1. Create or clear a log file at `./auraai-app.log`
 2. Verify PostgreSQL is running and start it if necessary
-3. Set environment variables including DATABASE_URL
-4. Run database seeding with `npm run db:push`
-5. Start the application with `npm run start` in background mode
-6. Save the process ID to `./auraai-app.pid`
+3. Set environment variables (DATABASE_URL, NODE_ENV, and GITHUB_API_KEY if provided)
+4. Run database schema migration with `npm run db:push`
+5. Run complete data seeding with `local-seed.js` (or fallback to `scripts/fallback-seed.js` if needed)
+6. Start the application with `npm run start` in background mode
+7. Save the process ID to `./auraai-app.pid`
+8. Display sample login credentials for the application
 
 Once started, the application will continue running even if you close your terminal session.
 
