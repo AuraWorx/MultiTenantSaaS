@@ -48,7 +48,7 @@ export default function IncognitoChatPage() {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([
     { 
-      content: "Hello! I'm the Incognito ChatGPT assistant powered by OpenAI's GPT-4o model. How can I help you today?", 
+      content: "Hello! I'm the Incognito ChatGPT assistant. How can I help you today?", 
       role: 'assistant', 
       timestamp: new Date() 
     }
@@ -109,7 +109,7 @@ export default function IncognitoChatPage() {
         }
       ]);
       
-      const res = await apiRequest('POST', '/api/chat', requestBody);
+      const res = await apiRequest('POST', '/api/mock-chat', requestBody);
       return res.json();
     },
     onSuccess: (data) => {
@@ -328,9 +328,6 @@ export default function IncognitoChatPage() {
                 <div>
                   <CardTitle className="text-xl flex items-center">
                     Chat
-                    <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full">
-                      GPT-4o
-                    </span>
                   </CardTitle>
                   <CardDescription>
                     {selectedFile ? (
@@ -343,6 +340,25 @@ export default function IncognitoChatPage() {
                     )}
                   </CardDescription>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    setMessages([
+                      { 
+                        content: "Hello! I'm the Incognito ChatGPT assistant. How can I help you today?", 
+                        role: 'assistant', 
+                        timestamp: new Date() 
+                      }
+                    ]);
+                    if (selectedFile) {
+                      setSelectedFile(null);
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Clear Chat
+                </Button>
                 {selectedFile && (
                   <Button 
                     variant="ghost" 
