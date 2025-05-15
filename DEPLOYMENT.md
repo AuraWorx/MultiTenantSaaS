@@ -64,10 +64,10 @@ DATABASE_URL="postgresql://auraaiuser:your_password@localhost:5432/ai_governance
 The script will:
 1. Create or clear a log file at `./auraai-app.log`
 2. Verify PostgreSQL is running and start it if necessary
-3. Set environment variables (DATABASE_URL, NODE_ENV, and GITHUB_API_KEY if provided)
+3. Set environment variables (DATABASE_URL, NODE_ENV=development, and GITHUB_API_KEY if provided)
 4. Run database schema migration with `npm run db:push`
 5. Run complete data seeding with `local-seed.js` (or fallback to `scripts/fallback-seed.js` if needed)
-6. Start the application with `npm run start` in background mode
+6. Start the application with `npm run dev` in background mode (development environment)
 7. Save the process ID to `./auraai-app.pid`
 8. Display sample login credentials for the application
 

@@ -36,8 +36,8 @@ else
 fi
 
 # Set environment variables
-export NODE_ENV=production
-echo "Setting NODE_ENV=production" >> $LOG_FILE
+export NODE_ENV=development
+echo "Setting NODE_ENV=development" >> $LOG_FILE
 echo "Using DATABASE_URL=$DATABASE_URL" >> $LOG_FILE
 
 # Set GitHub API key if available
@@ -88,8 +88,8 @@ fi
 echo "✅ Database setup complete!" | tee -a $LOG_FILE
 
 # Start the application with nohup to keep it running after terminal closes
-echo "Starting AuraAI application..." | tee -a $LOG_FILE
-nohup npm run start >> $LOG_FILE 2>&1 &
+echo "Starting AuraAI application in development mode..." | tee -a $LOG_FILE
+nohup npm run dev >> $LOG_FILE 2>&1 &
 
 # Save the process ID so we can stop it later if needed
 echo $! > ./auraai-app.pid
