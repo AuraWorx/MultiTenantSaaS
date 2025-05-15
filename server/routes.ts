@@ -482,34 +482,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication endpoints
   setupAuth(app);
   
-  // Mock Chat API for Incognito ChatGPT
+  // Real OpenAI Chat API for Incognito ChatGPT
   app.post("/api/mock-chat", isAuthenticated, async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, fileId } = req.body;
       const user = req.user;
       
       if (!prompt || !user) {
         return res.status(400).json({ error: "Missing required fields" });
       }
       
-      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
-        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      // Extract organization ID safely, handling different user object structures
+      let organizationId: number;
+      if (typeof user.organization === 'object' && user.organization !== null) {
+        organizationId = user.organization.id;
+      } else if (user.organizationId) {
+        organizationId = user.organizationId;
+      } else {
+        organizationId = 1; // Default to organization ID 1 if not found
+      }
       
-      // Create a mock response
-      const mockResponse = "I am currently being built, wait for reliable answers!";
+      // If a file ID was provided, get the file content
+      let fileContent: string | undefined = undefined;
+      if (fileId) {
+        const file = await storage.getDataStoreFileById(fileId);
+        if (file && file.type === 'file') {
+          fileContent = file.content;
+        }
+      }
+      
+      // Get response from OpenAI
+      const { generateChatResponse } = await import('./openai');
+      const response = await generateChatResponse(prompt, fileContent);
       
       // Store the prompt and response
       const promptAnswer = await storage.createPromptAnswer({
         prompt,
-        response: mockResponse,
+        response,
         userId: user.id,
         organizationId
       });
       
       return res.status(200).json(promptAnswer);
     } catch (error) {
-      console.error("Mock chat error:", error);
-      return res.status(500).json({ error: "Failed to process chat request" });
+      console.error("Chat API error:", error);
+      return res.status(500).json({ error: "Failed to process chat request: " + (error.message || "Unknown error") });
     }
   });
   
