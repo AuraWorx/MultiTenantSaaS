@@ -144,7 +144,7 @@ export function BiasAnalysis() {
     data: scans, 
     isLoading: isLoadingScans,
     refetch: refetchScans
-  } = useQuery({
+  } = useQuery<BiasAnalysisScan[]>({
     queryKey: ['/api/bias-analysis/scans'],
     queryFn: getQueryFn({ on401: 'throw' })
   });
@@ -153,9 +153,16 @@ export function BiasAnalysis() {
   const { 
     data: selectedScan,
     isLoading: isLoadingScanDetails
-  } = useQuery({
-    queryKey: ['/api/bias-analysis/results', selectedScanId],
-    queryFn: getQueryFn({ on401: 'throw' }),
+  } = useQuery<{
+    scan: BiasAnalysisScan;
+    resultsByGroup: Record<string, BiasAnalysisResult[]>;
+  }>({
+    queryKey: ['/api/bias-analysis/scans', selectedScanId],
+    queryFn: async () => {
+      if (!selectedScanId) throw new Error('No scan selected');
+      const res = await apiRequest('GET', `/api/bias-analysis/scans/${selectedScanId}`);
+      return res.json();
+    },
     enabled: !!selectedScanId
   });
   
@@ -404,10 +411,10 @@ export function BiasAnalysis() {
     const scanStats = useMemo(() => {
       if (!scans) return { warnings: 0, failures: 0, total: 0, passRate: 0 };
       
-      const total = scans.length;
-      const warnings = scans.filter(scan => scan.status === 'completed' && scan.name.toLowerCase().includes('warning')).length;
-      const failures = scans.filter(scan => scan.status === 'failed').length;
-      const completed = scans.filter(scan => scan.status === 'completed').length;
+      const total = (scans ?? []).length;
+      const warnings = (scans ?? []).filter(scan => scan.status === 'completed' && scan.name.toLowerCase().includes('warning')).length;
+      const failures = (scans ?? []).filter(scan => scan.status === 'failed').length;
+      const completed = (scans ?? []).filter(scan => scan.status === 'completed').length;
       const passRate = total > 0 ? ((completed - warnings - failures) / total) * 100 : 0;
       
       return { warnings, failures, total, passRate };
@@ -496,7 +503,7 @@ export function BiasAnalysis() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : scans && scans.length > 0 ? (
+              ) : (scans ?? []).length > 0 ? (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
@@ -509,7 +516,7 @@ export function BiasAnalysis() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {scans.map(scan => (
+                      {(scans ?? []).map(scan => (
                         <TableRow key={scan.id}>
                           <TableCell className="font-medium">{scan.name}</TableCell>
                           <TableCell>{scan.dataSource}</TableCell>
@@ -759,7 +766,7 @@ export function BiasAnalysis() {
       );
     }
     
-    const { scan, resultsByGroup } = selectedScan;
+    const { scan, resultsByGroup } = selectedScan as { scan: BiasAnalysisScan; resultsByGroup: Record<string, BiasAnalysisResult[]> };
     
     // Calculate overall status based on results
     const allResults = Object.values(resultsByGroup).flat();
