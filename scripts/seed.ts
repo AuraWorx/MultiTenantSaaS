@@ -4,7 +4,7 @@ import {
   githubScanConfigs, githubScanResults, githubScanSummaries,
   biasAnalysisScans, biasAnalysisResults,
   frontierModelsList, frontierModelsAlertsConfig, frontierModelsAlerts,
-  infraInventory
+  infraInventory, promptAnswers, dataStoreFiles
 } from '../shared/schema';
 import { db, pool } from '../server/db';
 
@@ -20,6 +20,8 @@ async function seed() {
 
     // Clear existing data
     console.log('Clearing existing data...');
+    await db.delete(dataStoreFiles);
+    await db.delete(promptAnswers);
     await db.delete(infraInventory);
     await db.delete(complianceIssues);
     await db.delete(riskItems);
@@ -610,6 +612,70 @@ async function seed() {
     console.log('  Username: viewer_user');
     console.log('  Password: viewerpassword');
     console.log('----------------------------------');
+    
+    // Create sample prompt answers for Incognito ChatGPT
+    console.log('Creating sample prompt answers...');
+    await db.insert(promptAnswers).values([
+      {
+        prompt: 'What is AI governance?',
+        response: 'AI governance refers to the frameworks, policies, and practices designed to ensure that artificial intelligence systems are developed, deployed, and used in an ethical, transparent, accountable, and legally compliant manner. It encompasses risk management, regulatory compliance, and ethical considerations to mitigate potential negative impacts of AI while maximizing its benefits.',
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      },
+      {
+        prompt: 'How can I detect bias in my ML models?',
+        response: 'To detect bias in ML models, you should: 1) Analyze your training data for representation imbalances across demographic groups, 2) Use metrics like demographic parity, equal opportunity, and equalized odds to measure fairness, 3) Implement tools like Aequitas, Fairlearn, or IBM AI Fairness 360, 4) Test your model with diverse input scenarios, and 5) Conduct regular audits of model decisions across different population segments to identify disparate impacts.',
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      }
+    ]);
+    
+    // Create sample data store files for Incognito ChatGPT
+    console.log('Creating sample data store files...');
+    const [rootFolder] = await db.insert(dataStoreFiles).values({
+      name: 'AI Policies',
+      path: 'AI Policies',
+      type: 'folder',
+      content: '',
+      userId: demoUser.id,
+      organizationId: adminOrg.id,
+    }).returning();
+    
+    await db.insert(dataStoreFiles).values([
+      {
+        name: 'Model Risk Management.txt',
+        path: 'Model Risk Management.txt',
+        type: 'file',
+        content: 'Model Risk Management Policy\n\nThis document outlines the framework for identifying, assessing, and mitigating risks associated with AI models used within the organization.\n\n1. Model Inventory\n- All AI models must be registered in the central model inventory\n- Documentation must include model purpose, input features, and expected outputs\n\n2. Risk Assessment\n- Models must undergo risk assessment before deployment\n- High-risk models require additional governance and oversight\n\n3. Validation\n- Independent validation required for all models\n- Testing must cover fairness, robustness, and explainability\n\n4. Monitoring\n- Continuous monitoring of model performance\n- Drift detection and regular retraining schedule\n\n5. Governance\n- Clear ownership and accountability for each model\n- Regular reporting to the AI Governance Committee',
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      },
+      {
+        name: 'Ethics Guidelines.txt',
+        path: 'Ethics Guidelines.txt',
+        type: 'file',
+        content: 'AI Ethics Guidelines\n\n1. Fairness\n- AI systems should be designed to minimize harmful bias\n- Regular testing for disparate impacts across protected groups\n\n2. Transparency\n- Clear documentation of AI decision-making processes\n- Explainability appropriate to the use case and audience\n\n3. Privacy\n- Data minimization principles in all AI applications\n- Strong controls for sensitive personal data\n\n4. Accountability\n- Clear lines of responsibility for AI outcomes\n- Human oversight for high-impact decisions\n\n5. Safety & Security\n- Rigorous testing before deployment\n- Regular vulnerability assessments\n\n6. Human Agency\n- AI systems should augment human capabilities, not replace human judgment\n- Clear disclosure when interacting with AI systems',
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      },
+      {
+        name: 'Sample Data.txt',
+        path: 'Sample Data.txt',
+        type: 'file',
+        content: 'age,income,zip_code,risk_score\n32,75000,90210,0.12\n45,65000,10001,0.25\n28,120000,60007,0.05\n52,45000,30306,0.45\n39,85000,02116,0.18\n61,95000,94103,0.32\n25,55000,75001,0.22\n48,105000,20008,0.15\n36,72000,80202,0.28\n58,130000,98101,0.08',
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      },
+      {
+        name: 'Implementation Plan.txt',
+        path: 'Implementation Plan.txt',
+        type: 'file',
+        content: 'AI Governance Implementation Plan\n\n1. Discovery & Assessment (Month 1-2)\n- Complete AI inventory\n- Risk assessment of existing systems\n- Gap analysis against regulatory requirements\n\n2. Policy Development (Month 3-4)\n- Develop governance framework\n- Create policies and procedures\n- Define roles and responsibilities\n\n3. Tool Implementation (Month 5-6)\n- Deploy monitoring tools\n- Implement documentation systems\n- Set up reporting mechanisms\n\n4. Training (Month 7)\n- Train AI developers on governance requirements\n- Train business users on responsible AI usage\n- Train compliance team on AI-specific considerations\n\n5. Rollout (Month 8-9)\n- Phased implementation across departments\n- Feedback collection and adjustment\n\n6. Audit & Review (Month 10-12)\n- Internal audit of implementation\n- Process improvement\n- Prepare for external assessment',
+        parentId: rootFolder.id,
+        userId: demoUser.id,
+        organizationId: adminOrg.id,
+      }
+    ]);
     
   } catch (error) {
     console.error('Error seeding database:', error);
