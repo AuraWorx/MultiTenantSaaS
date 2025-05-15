@@ -311,7 +311,7 @@ export default function IncognitoChatPage() {
               <Button 
                 onClick={() => {
                   setNewFileType('file');
-                  setIsNewFileDialogOpen(true);
+                  handleDialogOpenChange(true);
                 }}
                 variant="outline" 
                 size="sm" 
@@ -323,7 +323,7 @@ export default function IncognitoChatPage() {
               <Button 
                 onClick={() => {
                   setNewFileType('folder');
-                  setIsNewFileDialogOpen(true);
+                  handleDialogOpenChange(true);
                 }}
                 variant="outline" 
                 size="sm" 
@@ -501,7 +501,7 @@ export default function IncognitoChatPage() {
       </div>
       
       {/* New File/Folder Dialog */}
-      <Dialog open={isNewFileDialogOpen} onOpenChange={setIsNewFileDialogOpen}>
+      <Dialog open={isNewFileDialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
