@@ -98,8 +98,16 @@ To stop the application, use the provided stop script:
 This script will:
 1. Check if the application is running using the saved PID
 2. Send a graceful shutdown signal (SIGTERM)
-3. Force shutdown if necessary after a timeout
-4. Remove the PID file
+3. Wait up to 5 seconds for graceful termination with visual feedback
+4. Force shutdown if necessary after timeout (using SIGKILL)
+5. Verify the application has been properly terminated
+6. Remove the PID file
+
+The stop script includes visual feedback with emoji indicators to clearly show the shutdown process status:
+- ⏳ Process in progress
+- ✅ Success
+- ⚠️ Warning
+- ❌ Error
 
 ## Troubleshooting
 
