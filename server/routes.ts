@@ -624,6 +624,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: "Failed to delete data store file" });
     }
   });
+  
+  // Bulk delete all files for a user
+  app.delete("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const success = await storage.deleteAllDataStoreFiles(user.id);
+      if (!success) {
+        return res.status(500).json({ error: "Failed to delete all files" });
+      }
+      
+      return res.status(200).json({ message: "All files deleted successfully" });
+    } catch (error) {
+      console.error("Delete all data store files error:", error);
+      return res.status(500).json({ error: "Failed to delete all data store files" });
+    }
+  });
 
   // Dashboard data
   app.get("/api/dashboard", isAuthenticated, async (req, res) => {

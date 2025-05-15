@@ -41,6 +41,7 @@ export interface IStorage {
   createDataStoreFile(file: InsertDataStoreFile): Promise<DataStoreFile>;
   updateDataStoreFile(id: number, file: Partial<InsertDataStoreFile>): Promise<DataStoreFile | undefined>;
   deleteDataStoreFile(id: number): Promise<boolean>;
+  deleteAllDataStoreFiles(userId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -284,6 +285,18 @@ export class DatabaseStorage implements IStorage {
       return true;
     } catch (error) {
       console.error("Error deleting data store file:", error);
+      return false;
+    }
+  }
+  
+  async deleteAllDataStoreFiles(userId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(dataStoreFiles)
+        .where(eq(dataStoreFiles.userId, userId));
+      return true;
+    } catch (error) {
+      console.error("Error deleting all data store files:", error);
       return false;
     }
   }
