@@ -10,6 +10,7 @@ This guide provides instructions on how to use the AI Governance Platform, a com
   - [Navigation](#navigation)
 - [Map Module](#map-module)
   - [AI Usage Finder](#ai-usage-finder)
+  - [Infrastructure Map](#infrastructure-map)
   - [Use Case Database](#use-case-database)
   - [CMDB Integration](#cmdb-integration)
   - [Risk Documentation](#risk-documentation)
@@ -45,6 +46,7 @@ After logging in, you'll be taken to the dashboard, which provides:
 - Compliance issues overview
 - Open risks count
 - Recent activity feed
+- Frontier Models alerts widget with latest model updates
 - Quick access to key features
 
 ### Navigation
@@ -77,6 +79,28 @@ The AI Usage Finder helps identify AI systems across your organization.
 3. Apply filters to narrow down results
 4. Click on a system to view details
 5. Click "Add to Inventory" to add a system to your tracked AI systems
+
+### Infrastructure Map
+
+The Infrastructure Map provides a visual representation of your organization's IT infrastructure with the AuraAI scanner at the center.
+
+**Key Features:**
+- Interactive visualization of your IT infrastructure components
+- Color-coded categories (on-premises, cloud, source control)
+- Draggable nodes for customizing the visualization layout
+- Animated connections between the AuraAI scanner and infrastructure items
+- Category count indicators showing inventory distribution
+- Reset layout button for returning to the default arrangement
+- Detailed information panel when clicking on specific nodes
+
+**To use the Infrastructure Map:**
+1. Navigate to Map > Infrastructure Map
+2. View the visualization with the AuraAI scanner at the center
+3. Hover over nodes to see item names and details
+4. Drag nodes to customize the visualization layout
+5. Click the Reset Layout button to return to the default arrangement
+6. Click on nodes to view detailed information about specific infrastructure items
+7. Use the animated effects to understand the relationships between components
 
 ### Use Case Database
 
@@ -236,41 +260,53 @@ The Manage module helps you control and govern AI systems throughout their lifec
 
 ### Frontier Model Alerts
 
-The Frontier Model Alerts feature provides notifications about newly deployed frontier models.
+The Frontier Model Alerts feature provides notifications about newly released frontier AI models and their security updates, helping organizations stay informed about the latest developments in the AI landscape.
 
 **Key Features:**
-- Receive alerts about new frontier models
-- Track capabilities and risks of new models
-- Get updates on industry best practices
-- Monitor deployment across your organization
-- Implement governance recommendations
+- Receive alerts about new frontier models and important updates
+- Track different alert categories (security, feature, compliance, ethics)
+- Configure notifications for specific AI model providers
+- Access detailed information via external links
+- View a timeline of model releases and security updates
+- Monitor AI model evolution across your organization
 
 **To use Frontier Model Alerts:**
-1. Navigate to Manage > Frontier Model Alerts
-2. View recent alerts and notifications
-3. Configure alert preferences
-4. Review detailed information about new models
-5. Track implementation status within your organization
+1. Navigate to Manage > Frontier Models (Alerts tab)
+2. View the complete alerts history with category indicators
+3. Configure which models to monitor in the Alert Configurations tab
+4. Add new alert configurations for specific models
+5. Click on alert details to access external resources and documentation
+6. Use filters to find specific types of alerts
+
+**Dashboard Integration:**
+- The Dashboard includes a Frontier Models widget showing recent alerts
+- Color-coded badges indicate alert categories (security alerts highlighted in red)
+- Quick links to detailed information and the full Manage page
 
 ### Risk Register
 
-The Risk Register maintains a comprehensive record of AI-related risks.
+The Risk Register maintains a comprehensive record of AI-related risks and mitigation strategies.
 
 **Key Features:**
-- Centralized view of all identified risks
-- Risk categorization and prioritization
-- Status tracking and updates
-- Assignment of risk owners
-- Mitigation planning and tracking
-- Risk reporting and dashboards
+- Centralized view of all identified risks with enhanced details
+- Risk categorization by type (security, privacy, bias, etc.)
+- Severity, impact, and likelihood assessment
+- Status tracking (open, mitigated, closed)
+- Risk mitigation planning and tracking
+- Detailed risk analysis with system information
+- Actions menu with Edit, Add Mitigation, and Delete functions
+- Consistent risk management across the organization
 
 **To use the Risk Register:**
 1. Navigate to Manage > Risk Register
 2. View all risks or filter by category, status, or severity
-3. Click on a risk to view details
-4. Update risk status and mitigation efforts
-5. Assign ownership and due dates
-6. Generate risk reports for stakeholders
+3. Click on a risk to view details including mitigation history
+4. Use the Actions dropdown to:
+   - Edit risk details (severity, impact, likelihood, category, etc.)
+   - Add a mitigation plan (accept, transfer, limit) with notes
+   - Delete the risk item (with confirmation)
+5. Monitor mitigation statuses (planned, in-progress, completed, rejected)
+6. Generate risk reports for stakeholders and compliance purposes
 
 ### Lifecycle Management
 

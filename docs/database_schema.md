@@ -51,11 +51,27 @@ Table: `risk_items`
 - `id`: Serial, Primary Key
 - `title`: Text, Risk name
 - `description`: Text
-- `status`: Text, Risk status
-- `severity`: Text
+- `status`: Text, Risk status (open, mitigated, closed)
+- `severity`: Text (low, medium, high, critical)
+- `impact`: Text (low, medium, high)
+- `likelihood`: Text (low, medium, high)
+- `category`: Text (security, privacy, bias, etc.)
+- `system_details`: Text, Additional system information
 - `ai_system_id`: Integer, Foreign Key to ai_systems.id
-- `owner_id`: Integer, Foreign Key to users.id
+- `created_by_id`: Integer, Foreign Key to users.id
 - `organization_id`: Integer, Foreign Key to organizations.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Risk Mitigations
+Table: `risk_mitigations`
+- `id`: Serial, Primary Key
+- `risk_item_id`: Integer, Foreign Key to risk_items.id
+- `description`: Text, Mitigation description
+- `status`: Text, Mitigation status (planned, in-progress, completed, rejected)
+- `notes`: Text, Optional additional notes
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
 - `created_at`: Timestamp with timezone
 - `updated_at`: Timestamp with timezone
 
@@ -138,9 +154,11 @@ Table: `bias_analysis_results`
 - One organization has many users
 - One organization has many AI systems
 - One organization has many risk items
+- One organization has many risk mitigations
 - One organization has many compliance issues
 - One organization has many GitHub scan configs
 - One organization has many bias analysis scans
+- One organization has many infrastructure inventory items
 
 ### User Relations
 - One user belongs to one organization
@@ -148,12 +166,24 @@ Table: `bias_analysis_results`
 - One user can own many AI systems
 - One user can own many risk items
 - One user can create many bias analysis scans
+- One user can create many infrastructure inventory items
 
 ### AI System Relations
 - One AI system belongs to one organization
 - One AI system is owned by one user
 - One AI system can have many risk items
 - One AI system can have many compliance issues
+
+### Risk Item Relations
+- One risk item belongs to one organization
+- One risk item can be associated with one AI system (or none)
+- One risk item is created by one user
+- One risk item can have many risk mitigations
+
+### Risk Mitigation Relations
+- One risk mitigation belongs to one risk item
+- One risk mitigation belongs to one organization
+- One risk mitigation is created by one user
 
 ### GitHub Scan Relations
 - One GitHub scan config belongs to one organization
@@ -164,6 +194,69 @@ Table: `bias_analysis_results`
 - One bias analysis scan belongs to one organization
 - One bias analysis scan is created by one user
 - One bias analysis scan can have many results
+
+## Frontier Models Alerts
+
+### Frontier Models List
+Table: `frontier_models_list`
+- `id`: Serial, Primary Key
+- `model_id`: Text, Unique model identifier
+- `name`: Text, Model name
+- `provider`: Text, Provider name (OpenAI, Anthropic, etc.)
+- `release_date`: Timestamp with timezone, Nullable
+- `description`: Text, Nullable
+- `capabilities`: Text array, Model capabilities
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Frontier Models Alerts Config
+Table: `frontier_models_alerts_config`
+- `id`: Serial, Primary Key
+- `model_id`: Integer, Foreign Key to frontier_models_list.id
+- `category`: Text, Alert category (security, feature, etc.)
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+### Frontier Models Alerts
+Table: `frontier_models_alerts`
+- `id`: Serial, Primary Key
+- `alert_config_id`: Integer, Foreign Key to frontier_models_alerts_config.id
+- `title`: Text, Alert title
+- `description`: Text, Nullable
+- `url`: Text, Nullable, URL to alert details
+- `date_published`: Timestamp with timezone
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_at`: Timestamp with timezone
+
+## Infrastructure Inventory
+
+### Infrastructure Items
+Table: `infra_inventory`
+- `id`: Serial, Primary Key
+- `label`: Text, Display name of the infrastructure item
+- `category`: Text, Category type ('onprem', 'cloud', 'sourcecontrol')
+- `provider`: Text, Nullable, Provider or vendor name
+- `count`: Integer, Number of resources in this category
+- `icon`: Text, Icon identifier for visualization
+- `organization_id`: Integer, Foreign Key to organizations.id
+- `created_by_id`: Integer, Foreign Key to users.id
+- `created_at`: Timestamp with timezone
+- `updated_at`: Timestamp with timezone
+
+## Frontier Models Relations
+- One frontier model can have many alert configurations
+- One alert configuration belongs to one frontier model
+- One alert configuration belongs to one organization
+- One alert configuration is created by one user
+- One alert configuration can have many alerts
+- One alert belongs to one alert configuration
+- One alert belongs to one organization
+
+## Infrastructure Inventory Relations
+- One infrastructure item belongs to one organization
+- One infrastructure item is created by one user
 
 ## Schema Creation and Updates
 

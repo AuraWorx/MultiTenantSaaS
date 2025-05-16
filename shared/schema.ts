@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, decimal, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -59,10 +59,32 @@ export const riskItems = pgTable("risk_items", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   severity: text("severity").notNull(), // low, medium, high, critical
-  status: text("status").notNull(), // open, in_progress, resolved
+  impact: text("impact").default("medium"), // low, medium, high
+  likelihood: text("likelihood").default("medium"), // low, medium, high
+  category: text("category").default("security"), // security, privacy, bias
+  status: text("status").notNull(), // open, mitigated, closed
+  systemDetails: text("system_details"),
   aiSystemId: integer("ai_system_id")
-    .references(() => aiSystems.id)
+    .references(() => aiSystems.id),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
     .notNull(),
+  createdById: integer("created_by_id")
+    .references(() => users.id)
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Risk Mitigations
+export const riskMitigations = pgTable("risk_mitigations", {
+  id: serial("id").primaryKey(),
+  riskItemId: integer("risk_item_id")
+    .references(() => riskItems.id)
+    .notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull(), // planned, in-progress, completed, rejected
+  notes: text("notes"),
   organizationId: integer("organization_id")
     .references(() => organizations.id)
     .notNull(),
@@ -98,7 +120,9 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   aiSystems: many(aiSystems),
   riskItems: many(riskItems),
+  riskMitigations: many(riskMitigations),
   complianceIssues: many(complianceIssues),
+  infraInventory: many(infraInventory),
 }));
 
 export const usersRelations = relations(users, ({ one }) => ({
@@ -125,10 +149,11 @@ export const aiSystemsRelations = relations(aiSystems, ({ one, many }) => ({
   complianceIssues: many(complianceIssues),
 }));
 
-export const riskItemsRelations = relations(riskItems, ({ one }) => ({
+export const riskItemsRelations = relations(riskItems, ({ one, many }) => ({
   aiSystem: one(aiSystems, {
     fields: [riskItems.aiSystemId],
     references: [aiSystems.id],
+    relationName: 'riskItem_aiSystem',
   }),
   organization: one(organizations, {
     fields: [riskItems.organizationId],
@@ -136,6 +161,22 @@ export const riskItemsRelations = relations(riskItems, ({ one }) => ({
   }),
   createdBy: one(users, {
     fields: [riskItems.createdById],
+    references: [users.id],
+  }),
+  mitigations: many(riskMitigations),
+}));
+
+export const riskMitigationsRelations = relations(riskMitigations, ({ one }) => ({
+  riskItem: one(riskItems, {
+    fields: [riskMitigations.riskItemId],
+    references: [riskItems.id],
+  }),
+  organization: one(organizations, {
+    fields: [riskMitigations.organizationId],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [riskMitigations.createdById],
     references: [users.id],
   }),
 }));
@@ -182,6 +223,12 @@ export const insertRiskItemSchema = createInsertSchema(riskItems).omit({
   updatedAt: true,
 });
 
+export const insertRiskMitigationSchema = createInsertSchema(riskMitigations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertComplianceIssueSchema = createInsertSchema(complianceIssues).omit({
   id: true,
   createdAt: true,
@@ -203,6 +250,9 @@ export type InsertAiSystem = z.infer<typeof insertAiSystemSchema>;
 
 export type RiskItem = typeof riskItems.$inferSelect;
 export type InsertRiskItem = z.infer<typeof insertRiskItemSchema>;
+
+export type RiskMitigation = typeof riskMitigations.$inferSelect;
+export type InsertRiskMitigation = z.infer<typeof insertRiskMitigationSchema>;
 
 export type ComplianceIssue = typeof complianceIssues.$inferSelect;
 export type InsertComplianceIssue = z.infer<typeof insertComplianceIssueSchema>;
@@ -382,3 +432,204 @@ export type InsertBiasAnalysisScan = z.infer<typeof insertBiasAnalysisScanSchema
 
 export type BiasAnalysisResult = typeof biasAnalysisResults.$inferSelect;
 export type InsertBiasAnalysisResult = z.infer<typeof insertBiasAnalysisResultSchema>;
+
+// Frontier Models Schema
+export const frontierModelsList = pgTable("frontier_models_list", {
+  id: serial("id").primaryKey(),
+  model_id: text("model_id").notNull().unique(),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(),
+  release_date: timestamp("release_date"),
+  description: text("description"),
+  capabilities: text("capabilities").array(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const frontierModelsAlertsConfig = pgTable("frontier_models_alerts_config", {
+  id: serial("id").primaryKey(),
+  model_id: integer("model_id").references(() => frontierModelsList.id).notNull(),
+  category: text("category").notNull(), // 'security' or 'feature'
+  organization_id: integer("organization_id").references(() => organizations.id).notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const frontierModelsAlerts = pgTable("frontier_models_alerts", {
+  id: serial("id").primaryKey(),
+  alert_config_id: integer("alert_config_id").references(() => frontierModelsAlertsConfig.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  url: text("url"),
+  date_published: timestamp("date_published").notNull(),
+  organization_id: integer("organization_id").references(() => organizations.id).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Relations for frontier models
+export const frontierModelsListRelations = relations(frontierModelsList, ({ many }) => ({
+  alertConfigs: many(frontierModelsAlertsConfig),
+}));
+
+export const frontierModelsAlertsConfigRelations = relations(frontierModelsAlertsConfig, ({ one, many }) => ({
+  model: one(frontierModelsList, {
+    fields: [frontierModelsAlertsConfig.model_id],
+    references: [frontierModelsList.id],
+  }),
+  alerts: many(frontierModelsAlerts),
+  organization: one(organizations, {
+    fields: [frontierModelsAlertsConfig.organization_id],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [frontierModelsAlertsConfig.created_by_id],
+    references: [users.id],
+  }),
+}));
+
+export const frontierModelsAlertsRelations = relations(frontierModelsAlerts, ({ one }) => ({
+  alertConfig: one(frontierModelsAlertsConfig, {
+    fields: [frontierModelsAlerts.alert_config_id],
+    references: [frontierModelsAlertsConfig.id],
+  }),
+  organization: one(organizations, {
+    fields: [frontierModelsAlerts.organization_id],
+    references: [organizations.id],
+  }),
+}));
+
+// Schemas for frontier models
+export const insertFrontierModelSchema = createInsertSchema(frontierModelsList, {
+  capabilities: z.array(z.string()).optional(),
+}).omit({ 
+  id: true, 
+  created_at: true, 
+  updated_at: true 
+});
+
+export const insertFrontierModelsAlertsConfigSchema = createInsertSchema(frontierModelsAlertsConfig).omit({ 
+  id: true, 
+  created_at: true, 
+  updated_at: true 
+});
+
+export const insertFrontierModelsAlertsSchema = createInsertSchema(frontierModelsAlerts).omit({ 
+  id: true, 
+  created_at: true 
+});
+
+// Types for frontier models
+export type FrontierModel = typeof frontierModelsList.$inferSelect;
+export type InsertFrontierModel = z.infer<typeof insertFrontierModelSchema>;
+
+export type FrontierModelsAlertsConfig = typeof frontierModelsAlertsConfig.$inferSelect;
+export type InsertFrontierModelsAlertsConfig = z.infer<typeof insertFrontierModelsAlertsConfigSchema>;
+
+export type FrontierModelsAlert = typeof frontierModelsAlerts.$inferSelect;
+export type InsertFrontierModelsAlert = z.infer<typeof insertFrontierModelsAlertsSchema>;
+
+// Infrastructure Inventory for Visualization
+export const infraInventory = pgTable("infra_inventory", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  category: text("category").notNull(), // onprem, cloud, sourcecontrol, etc.
+  provider: text("provider"), // aws, azure, github, etc. (nullable)
+  count: integer("count").notNull().default(0),
+  icon: text("icon").notNull(), // Icon identifier for visualization
+  organizationId: integer("organization_id")
+    .references(() => organizations.id)
+    .notNull(),
+  createdById: integer("created_by_id")
+    .references(() => users.id)
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const infraInventoryRelations = relations(infraInventory, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [infraInventory.organizationId],
+    references: [organizations.id],
+  }),
+  createdBy: one(users, {
+    fields: [infraInventory.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const insertInfraInventorySchema = createInsertSchema(infraInventory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export type InfraInventory = typeof infraInventory.$inferSelect;
+export type InsertInfraInventory = z.infer<typeof insertInfraInventorySchema>;
+
+// Prompt Answers for Incognito ChatGPT
+export const promptAnswers = pgTable("prompt_answers", {
+  id: serial("id").primaryKey(),
+  prompt: text("prompt").notNull(),
+  response: text("response").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const promptAnswersRelations = relations(promptAnswers, ({ one }) => ({
+  user: one(users, {
+    fields: [promptAnswers.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [promptAnswers.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const insertPromptAnswerSchema = createInsertSchema(promptAnswers).omit({
+  id: true,
+  created_at: true,
+});
+
+export type PromptAnswer = typeof promptAnswers.$inferSelect;
+export type InsertPromptAnswer = z.infer<typeof insertPromptAnswerSchema>;
+
+// Local Data Store for Incognito ChatGPT
+export const dataStoreFiles = pgTable("data_store_files", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  path: text("path").notNull(),
+  content: text("content").notNull(),
+  type: text("type").notNull(), // file or folder
+  userId: integer("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  parentId: integer("parent_id"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const dataStoreFilesRelations = relations(dataStoreFiles, ({ one, many }) => ({
+  user: one(users, {
+    fields: [dataStoreFiles.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [dataStoreFiles.organizationId],
+    references: [organizations.id],
+  }),
+  parent: one(dataStoreFiles, {
+    fields: [dataStoreFiles.parentId],
+    references: [dataStoreFiles.id],
+    relationName: "parent_child",
+  }),
+  children: many(dataStoreFiles, { relationName: "parent_child" }),
+}));
+
+export const insertDataStoreFileSchema = createInsertSchema(dataStoreFiles).omit({
+  id: true,
+  created_at: true,
+});
+
+export type DataStoreFile = typeof dataStoreFiles.$inferSelect;
+export type InsertDataStoreFile = z.infer<typeof insertDataStoreFileSchema>;

@@ -75,12 +75,30 @@ The script will:
 - Install any missing dependencies if needed
 - Create database tables and populate them with sample data
 
+If you encounter errors about missing columns (for example, "column 'impact' does not exist"), it means your database schema needs to be updated. Run:
+
+```bash
+# Update the database schema first
+npm run db:push
+
+# Then seed the database
+./seed-db.sh
+```
+
+Alternatively, you can use the fallback seed script that works with both old and new schemas:
+
+```bash
+node scripts/fallback-seed.js
+```
+
 The seed script will populate your database with:
 - Organizations (Admin Organization and Finance Corp.)
 - Roles (Administrator, User, Analyst, Viewer)
 - Users (admin_user, demo_user, viewer_user)
 - AI Systems (Customer Support Chatbot, Fraud Detection System, HR Candidate Screening, etc.)
-- Risk Items and Compliance Issues
+- Risk Items with enhanced data (severity, impact, likelihood, category)
+- Risk Mitigations for tracking mitigation strategies
+- Compliance Issues
 
 ## Running the Application
 
@@ -170,3 +188,53 @@ npm run db:push
 ```bash
 ./seed-db.sh
 ```
+
+### Recent Schema Updates
+
+The database schema has been enhanced with the following features:
+
+1. **Enhanced Risk Items**:
+   - Added impact field (low, medium, high)
+   - Added likelihood field (low, medium, high)
+   - Added category field (security, privacy, bias, etc.)
+   - Added systemDetails field for additional context
+
+2. **Risk Mitigations Table**:
+   - Tracks mitigation strategies for risk items
+   - Includes status tracking (planned, in-progress, completed, rejected)
+   - Stores mitigation notes and descriptions
+   - Links to risk items via foreign key
+
+3. **Frontier Models Alerts**:
+   - `frontier_models_list` table for tracking available AI models
+   - `frontier_models_alerts_config` table for alert configurations
+   - `frontier_models_alerts` table for storing model alerts
+   - Dashboard widget showing recent frontier model alerts
+   - Color-coded alerts by category (security, feature, compliance, ethics)
+   - Integration with the Manage page for full alert history and configuration
+
+4. **Infrastructure Map**:
+   - `infra_inventory` table for tracking IT infrastructure 
+   - Visual representation of infrastructure components with AuraAI scanner at the center
+   - Interactive canvas with draggable nodes
+   - Color-coded categories (on-premises, cloud, source control)
+   - Count indicators for each infrastructure category
+   - Reset layout functionality with animation effects
+
+After cloning or pulling the latest code, ensure you run:
+
+```bash
+npm run db:push && ./seed-db.sh
+```
+
+This will update your schema and seed the database with sample data that includes these enhanced fields and Frontier Models data.
+
+## Documentation
+
+For detailed feature documentation, see:
+
+- [User Guide](./docs/user_guide.md) - Complete user documentation
+- [Database Schema](./docs/database_schema.md) - Database structure and relationships
+- [Frontier Models Guide](./docs/frontier_models_guide.md) - Detailed guide for the Frontier Models feature
+- [Risk Register Guide](./docs/risk_register_guide.md) - Information on using the Risk Register
+- [Infrastructure Map Guide](./docs/infrastructure_map_guide.md) - Guide for the Infrastructure Map visualization

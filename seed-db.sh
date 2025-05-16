@@ -37,7 +37,13 @@ if [ -z "$REPL_ID" ]; then
     npm install --no-save pg
   fi
   
-  node local-seed.js
+  # Try standard seeder first, if it fails, try fallback seeder
+  if node local-seed.js; then
+    echo "Standard seeder ran successfully."
+  else
+    echo "Standard seeder failed, trying fallback seeder..."
+    node --experimental-modules scripts/fallback-seed.js
+  fi
 else
   echo "Running in Replit environment, using tsx with neon client..."
   npx tsx scripts/seed.ts

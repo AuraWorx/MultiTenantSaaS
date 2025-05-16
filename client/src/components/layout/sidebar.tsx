@@ -10,7 +10,11 @@ import {
   ChevronDown,
   LogOut,
   Shield,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  PanelLeftClose,
+  PanelLeft,
+  MessageSquare
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -23,12 +27,22 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useQuery } from '@tanstack/react-query';
 import { Organization } from '@shared/schema';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const [location] = useLocation();
   const { user, logoutMutation, switchOrganization } = useAuth();
   // Default to open on desktop
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
+  // Control auto-hide feature
+  const [isAutoHide, setIsAutoHide] = useState(false);
+  // Control sidebar collapsed state
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Mouse over control for auto-hide feature
+  const [isMouseOver, setIsMouseOver] = useState(false);
   
   const { data: organizations, isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ['/api/organizations'],
@@ -44,20 +58,39 @@ export function Sidebar() {
   };
   
   const navItems = [
-    { href: '/', icon: <LayoutDashboard className="w-5 h-5" />, text: 'Dashboard' },
-    { href: '/map', icon: <Map className="w-5 h-5" />, text: 'Map' },
-    { href: '/measure', icon: <BarChart2 className="w-5 h-5" />, text: 'Measure' },
-    { href: '/manage', icon: <Settings className="w-5 h-5" />, text: 'Manage' },
-    { href: '/risk-register', icon: <AlertTriangle className="w-5 h-5" />, text: 'Risk Register' },
+    // First section - Dashboard 
+    { 
+      section: 'main',
+      items: [
+        { href: '/', icon: <LayoutDashboard className="w-5 h-5" />, text: 'Dashboard' }
+      ]
+    },
+    // Second section - Main features
+    { 
+      section: 'features',
+      items: [
+        { href: '/map', icon: <Map className="w-5 h-5" />, text: 'Map' },
+        { href: '/measure', icon: <BarChart2 className="w-5 h-5" />, text: 'Measure' },
+        { href: '/manage', icon: <Settings className="w-5 h-5" />, text: 'Manage' }
+      ]
+    },
+    // Third section - Incognito ChatGPT
+    { 
+      section: 'incognito',
+      items: [
+        { href: '/incognito-chat', icon: <MessageSquare className="w-5 h-5" />, text: 'Incognito ChatGPT' }
+      ]
+    }
   ];
   
   // Only show the admin link if the user has admin permissions
   const hasAdminPermission = user?.role?.permissions?.includes('admin');
   if (hasAdminPermission) {
     navItems.push({ 
-      href: '/admin', 
-      icon: <Shield className="w-5 h-5" />, 
-      text: 'Platform Admin' 
+      section: 'admin',
+      items: [
+        { href: '/admin', icon: <Shield className="w-5 h-5" />, text: 'Platform Admin' }
+      ]
     });
   }
   
@@ -89,99 +122,170 @@ export function Sidebar() {
       />
 
       <div 
-        className="fixed inset-y-0 left-0 z-30 w-64 overflow-y-auto bg-white border-r border-gray-200 lg:static lg:inset-0"
+        className={cn(
+          "fixed inset-y-0 left-0 z-30 overflow-y-auto bg-background border-r border-border transition-all duration-300 ease-in-out",
+          isCollapsed ? "w-20" : "w-64",
+          isAutoHide && !isMouseOver && !isMobileMenuOpen ? "-ml-16" : "",
+          "lg:static lg:inset-0"
+        )}
+        onMouseEnter={() => setIsMouseOver(true)}
+        onMouseLeave={() => setIsMouseOver(false)}
       >
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 px-6 border-b border-gray-200">
+        <div className="flex items-center h-16 px-6 border-b border-border">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <div className="bg-primary text-white font-bold rounded-lg p-2 flex items-center justify-center">
-                <span>A<span className="lowercase">ura</span> AI</span>
+                <span>A<span className={cn("lowercase", isCollapsed && "hidden")}>ura</span> AI</span>
               </div>
             </div>
-            <div className="ml-2 text-xl font-bold text-gray-900">Govern</div>
+            {!isCollapsed && <div className="ml-2 text-xl font-bold text-foreground">Govern</div>}
           </div>
         </div>
         
         {/* Organization Selector */}
-        <div className="border-b border-gray-200">
-          <div className="relative px-4 py-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center justify-between w-full text-sm font-medium text-left text-gray-700 hover:text-gray-900 focus:outline-none">
-                <span className="font-medium text-sm">{user?.organization?.name || 'Loading...'}</span>
-                <ChevronDown className="w-5 h-5 ml-1" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>Switch Organization</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {orgsLoading ? (
-                  <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
-                ) : (
-                  organizations?.map(org => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => switchOrganization(org.id)}
-                      className="cursor-pointer"
-                    >
-                      {org.name}
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+        {!isCollapsed && (
+          <div className="border-b border-border">
+            <div className="relative px-4 py-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center justify-between w-full text-sm font-medium text-left text-foreground hover:text-primary focus:outline-none">
+                  <span className="font-medium text-sm">{user?.organization?.name || 'Loading...'}</span>
+                  <ChevronDown className="w-5 h-5 ml-1" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>Switch Organization</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {orgsLoading ? (
+                    <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
+                  ) : (
+                    organizations?.map(org => (
+                      <DropdownMenuItem
+                        key={org.id}
+                        onClick={() => switchOrganization(org.id)}
+                        className="cursor-pointer"
+                      >
+                        {org.name}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-        </div>
+        )}
         
         {/* Navigation */}
-        <nav className="px-2 py-4 space-y-1">
-          {navItems.map(item => (
-            <div key={item.href} className="w-full">
-              <Link href={item.href}>
-                <div 
-                  className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md cursor-pointer ${
-                    location === item.href
-                      ? 'bg-gray-100 text-primary'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  {item.icon}
-                  <span className="truncate ml-3">{item.text}</span>
+        <nav className="px-2 py-4 space-y-4 flex-grow">
+          {navItems.map((section, idx) => (
+            <div key={section.section} className="space-y-1">
+              {/* Section navigation items */}
+              {section.items.map(menuItem => (
+                <div key={menuItem.href} className="w-full">
+                  <Link href={menuItem.href}>
+                    <div 
+                      className={cn(
+                        "group flex items-center px-3 py-2 text-sm font-medium rounded-md cursor-pointer",
+                        location === menuItem.href
+                          ? 'bg-muted text-primary'
+                          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                        isCollapsed && "justify-center"
+                      )}
+                    >
+                      {menuItem.icon}
+                      {!isCollapsed && <span className="truncate ml-3">{menuItem.text}</span>}
+                    </div>
+                  </Link>
                 </div>
-              </Link>
+              ))}
+              
+              {/* Add separator after each section except the last one */}
+              {idx < navItems.length - 1 && (
+                <Separator className="my-2" />
+              )}
             </div>
           ))}
         </nav>
         
-        {/* User menu */}
-        <div className="mt-auto border-t border-gray-200">
-          <div className="px-4 py-3">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <Avatar className="h-10 w-10">
+        {/* Admin User, Logout and Collapse Sidebar at the bottom */}
+        <div className="mt-auto border-t border-border">
+          {/* Admin User info */}
+          <div className={cn(
+            "px-4 py-3",
+            isCollapsed && "flex justify-center"
+          )}>
+            {!isCollapsed ? (
+              <div className="flex items-center">
+                <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
                   <AvatarFallback>
                     {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
                   </AvatarFallback>
                 </Avatar>
-              </div>
-              <div className="ml-3 min-w-0 flex-1">
-                <div className="text-sm font-medium text-gray-900 truncate">
-                  {user?.firstName && user?.lastName 
-                    ? `${user.firstName} ${user.lastName}`
-                    : user?.username || 'User'}
+                <div className="ml-3 min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground truncate">
+                    Admin User
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">admin@aura.ai</div>
                 </div>
-                <div className="text-xs text-gray-500 truncate">{user?.email || ''}</div>
-                <div className="text-xs text-gray-500 truncate">{user?.role?.name || ''}</div>
               </div>
-              <div>
-                <button 
+            ) : (
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatarUrl || ''} alt={user?.username || ''} />
+                <AvatarFallback>
+                  {user ? getInitials(`${user.firstName || ''} ${user.lastName || ''}`) || user.username?.charAt(0).toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
+          
+          {/* Logout */}
+          <div className={cn(
+            "px-2 pt-1 pb-2",
+            isCollapsed && "flex justify-center"
+          )}>
+            {!isCollapsed ? (
+              <Link href="#">
+                <div 
+                  className="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md"
                   onClick={() => logoutMutation.mutate()}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
                 >
-                  <LogOut className="w-5 h-5" />
-                </button>
+                  <LogOut className="h-5 w-5" />
+                  <span className="truncate ml-3">Logout</span>
+                </div>
+              </Link>
+            ) : (
+              <div 
+                className="flex items-center justify-center p-2 text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md cursor-pointer"
+                onClick={() => logoutMutation.mutate()}
+              >
+                <LogOut className="h-5 w-5" />
               </div>
-            </div>
+            )}
+          </div>
+          
+          {/* Collapse Sidebar */}
+          <div className={cn(
+            "px-2 pb-3",
+            isCollapsed && "flex justify-center"
+          )}>
+            {!isCollapsed ? (
+              <Link href="#">
+                <div 
+                  className="flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md"
+                  onClick={() => setIsCollapsed(true)}
+                >
+                  <PanelLeftClose className="h-5 w-5" />
+                  <span className="truncate ml-3">Collapse Sidebar</span>
+                </div>
+              </Link>
+            ) : (
+              <div 
+                className="flex items-center justify-center p-2 text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded-md cursor-pointer"
+                onClick={() => setIsCollapsed(false)}
+              >
+                <PanelLeft className="h-5 w-5" />
+              </div>
+            )}
           </div>
         </div>
       </div>

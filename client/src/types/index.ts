@@ -13,6 +13,7 @@ export type Feature = {
 
 export interface MapFeatures {
   aiUsageFinder: Feature;
+  visualize: Feature;
   useCaseDatabase: Feature;
   cmdbIntegration: Feature;
   riskDocumentation: Feature;
@@ -30,7 +31,7 @@ export interface MeasureFeatures {
 export interface ManageFeatures {
   frontierModelAlerts: Feature;
   riskRegister: Feature;
-  lifecycleManagement: Feature;
+  riskMitigations: Feature;
 }
 
 export interface DashboardStats {

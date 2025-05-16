@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { TopNavbar } from "@/components/layout/top-navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,17 +16,1043 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Plus,
+  Shield,
+  Eye,
+  Lock,
+  BarChart2,
+  PanelRight,
+  MoreHorizontal,
+  PenLine,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { RiskItem } from "@shared/schema";
+import { RiskItem, RiskMitigation } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+// Type definition for the enriched risk item
+interface EnrichedRiskItem extends RiskItem {
+  latestMitigation: RiskMitigation | null;
+}
+
+// Type definition for the risk details response
+interface RiskDetailsResponse {
+  riskItem: RiskItem;
+  mitigations: RiskMitigation[];
+}
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+
+// RiskDetails component for displaying and managing a single risk's details
+interface RiskDetailsProps {
+  riskId: number;
+  onClose: () => void;
+}
+
+function RiskDetails({ riskId, onClose }: RiskDetailsProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isAddingMitigation, setIsAddingMitigation] = useState(false);
+  
+  const { data, isLoading } = useQuery<RiskDetailsResponse>({
+    queryKey: ["/api/risk-items", riskId],
+    enabled: !!riskId,
+  });
+  
+  const riskItem = data?.riskItem;
+  const mitigations = data?.mitigations || [];
+  
+  // Form for adding mitigations
+  const mitigationForm = useForm({
+    defaultValues: {
+      description: "",
+      status: "planned",
+      notes: ""
+    }
+  });
+  
+  const addMitigationMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await apiRequest(
+        "POST", 
+        `/api/risk-items/${riskId}/mitigations`, 
+        values
+      );
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items", riskId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      setIsAddingMitigation(false);
+      mitigationForm.reset();
+      toast({
+        title: "Mitigation added",
+        description: "The mitigation plan has been added successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to add mitigation: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const onMitigationSubmit = (values: any) => {
+    addMitigationMutation.mutate(values);
+  };
+  
+  const getCategoryIcon = (category: string) => {
+    switch(category.toLowerCase()) {
+      case 'security':
+        return <Shield className="h-4 w-4 mr-2" />;
+      case 'privacy':
+        return <Lock className="h-4 w-4 mr-2" />;
+      case 'bias':
+        return <BarChart2 className="h-4 w-4 mr-2" />;
+      default:
+        return <AlertTriangle className="h-4 w-4 mr-2" />;
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  if (!riskItem) {
+    return (
+      <div className="p-6">
+        <p className="text-center text-gray-500">Risk item not found.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      <Tabs defaultValue="details">
+        <TabsList className="grid grid-cols-2">
+          <TabsTrigger value="details">Risk Details</TabsTrigger>
+          <TabsTrigger value="mitigations">
+            Mitigations ({mitigations.length})
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="details" className="space-y-4">
+          <div className="grid gap-4 py-4">
+            <div>
+              <h3 className="text-lg font-semibold">{riskItem.title}</h3>
+              <p className="text-sm text-gray-500">Created on {new Date(riskItem.createdAt).toLocaleDateString()}</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Severity</h4>
+                <Badge variant="outline" className={riskItem.severity === 'critical' ? 'text-red-600 bg-red-100 border-red-200' : 
+                    riskItem.severity === 'high' ? 'text-orange-600 bg-orange-100 border-orange-200' : 
+                    riskItem.severity === 'medium' ? 'text-yellow-600 bg-yellow-100 border-yellow-200' : 
+                    riskItem.severity === 'low' ? 'text-green-600 bg-green-100 border-green-200' : 
+                    'text-gray-600 bg-gray-100 border-gray-200'}>
+                  {riskItem.severity}
+                </Badge>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                <div className="flex items-center">
+                  {riskItem.status === 'open' ? <AlertCircle className="h-4 w-4 text-red-500" /> :
+                     riskItem.status === 'mitigated' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
+                     riskItem.status === 'in-progress' ? <Clock className="h-4 w-4 text-yellow-500" /> :
+                     <AlertCircle className="h-4 w-4 text-gray-500" />}
+                  <span>{riskItem.status.replace('_', ' ')}</span>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Impact</h4>
+                <Badge variant="outline" className={`${riskItem.impact === 'high' ? 'text-red-600 bg-red-100' : riskItem.impact === 'medium' ? 'text-yellow-600 bg-yellow-100' : 'text-green-600 bg-green-100'}`}>
+                  {riskItem.impact}
+                </Badge>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Likelihood</h4>
+                <Badge variant="outline" className={`${riskItem.likelihood === 'high' ? 'text-red-600 bg-red-100' : riskItem.likelihood === 'medium' ? 'text-yellow-600 bg-yellow-100' : 'text-green-600 bg-green-100'}`}>
+                  {riskItem.likelihood}
+                </Badge>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Category</h4>
+                <div className="flex items-center">
+                  {riskItem.category ? getCategoryIcon(riskItem.category) : null}
+                  <span>{riskItem.category}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium text-gray-500">Description</h4>
+              <p className="text-sm mt-1">{riskItem.description}</p>
+            </div>
+            
+            {riskItem.systemDetails && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">System Details</h4>
+                <p className="text-sm mt-1">{riskItem.systemDetails}</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="mitigations" className="space-y-4">
+          {isAddingMitigation ? (
+            <div className="border p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-4">Add Mitigation Plan</h3>
+              <Form {...mitigationForm}>
+                <form onSubmit={mitigationForm.handleSubmit(onMitigationSubmit)} className="space-y-4">
+                  <FormField
+                    control={mitigationForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Describe the mitigation plan in detail"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={mitigationForm.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="planned">Planned</SelectItem>
+                            <SelectItem value="in-progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={mitigationForm.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Additional notes about this mitigation"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="flex justify-end space-x-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsAddingMitigation(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit"
+                      disabled={addMitigationMutation.isPending}
+                    >
+                      {addMitigationMutation.isPending ? "Saving..." : "Save Mitigation"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </div>
+          ) : (
+            <Button onClick={() => setIsAddingMitigation(true)} className="mb-4">
+              <Plus className="mr-2 h-4 w-4" /> Add Mitigation Plan
+            </Button>
+          )}
+          
+          {mitigations.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No mitigation plans added yet. Add a plan to address this risk.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mitigations.map((mitigation: RiskMitigation) => (
+                <Card key={mitigation.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            mitigation.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                            mitigation.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
+                            mitigation.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }
+                        >
+                          {mitigation.status.replace('-', ' ')}
+                        </Badge>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Added on {new Date(mitigation.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-500">Description</h4>
+                      <p className="text-sm mt-1">{mitigation.description}</p>
+                    </div>
+                    {mitigation.notes && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-500">Notes</h4>
+                        <p className="text-sm mt-1">{mitigation.notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// Edit risk form component
+function EditRiskForm({ riskId, onCancel }: { riskId: number; onCancel: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  const { data: riskData, isLoading } = useQuery<RiskDetailsResponse>({
+    queryKey: ["/api/risk-items", riskId],
+    enabled: !!riskId,
+  });
+  
+  const form = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      severity: "medium",
+      impact: "medium",
+      likelihood: "medium",
+      category: "security",
+      systemDetails: "",
+      status: "open",
+      mitigation: "accept"
+    }
+  });
+  
+  // Set form data when risk data is loaded
+  useEffect(() => {
+    if (riskData?.riskItem) {
+      const { riskItem } = riskData;
+      form.reset({
+        title: riskItem.title,
+        description: riskItem.description || "",
+        severity: riskItem.severity,
+        impact: riskItem.impact || "medium",
+        likelihood: riskItem.likelihood || "medium",
+        category: riskItem.category || "security",
+        systemDetails: riskItem.systemDetails || "",
+        status: riskItem.status,
+        mitigation: "accept" // Default mitigation strategy
+      });
+    }
+  }, [riskData, form]);
+  
+  const updateRiskMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await apiRequest("PUT", `/api/risk-items/${riskId}`, values);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items", riskId] });
+      form.reset();
+      toast({
+        title: "Risk updated",
+        description: "The risk item has been updated successfully.",
+      });
+      onCancel();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to update risk: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const deleteRiskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/risk-items/${riskId}`, {});
+      return res.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      toast({
+        title: "Risk deleted",
+        description: "The risk item and its mitigations have been deleted successfully.",
+      });
+      onCancel();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete risk: ${error.message}`,
+        variant: "destructive",
+      });
+      setIsDeleting(false);
+    }
+  });
+  
+  // All mutations are already defined earlier in the component
+
+  const onSubmit = (values: any) => {
+    // Extract mitigation strategy and handle it separately
+    const { mitigation, ...riskValues } = values;
+    
+    // Update the risk item
+    updateRiskMutation.mutate({
+      ...riskValues,
+      hasMitigation: !!mitigation && mitigation !== "none"
+    });
+    
+    // If mitigation is selected, create a mitigation record
+    if (mitigation && mitigation !== "none") {
+      const mitigationData = {
+        description: `Applied ${mitigation} mitigation strategy`,
+        status: "planned",
+        notes: `Risk will be ${mitigation}ed according to organization policy.`
+      };
+      
+      // Use API directly since we removed the duplicate createMitigationMutation
+      apiRequest("POST", `/api/risk-items/${riskId}/mitigations`, mitigationData)
+        .then(() => {
+          toast({
+            title: "Mitigation added",
+            description: "A new mitigation has been added to the risk."
+          });
+        })
+        .catch(error => {
+          toast({
+            title: "Error",
+            description: `Failed to add mitigation: ${error.message}`,
+            variant: "destructive",
+          });
+        });
+    }
+  };
+  
+  const handleDelete = () => {
+    if (isDeleting) {
+      deleteRiskMutation.mutate();
+    } else {
+      setIsDeleting(true);
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Risk title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Detailed description of the risk"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="severity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Severity</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select severity" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="mitigated">Mitigated</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="impact"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Impact</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select impact" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="likelihood"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Likelihood</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select likelihood" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Category</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="security">Security</SelectItem>
+                    <SelectItem value="privacy">Privacy</SelectItem>
+                    <SelectItem value="bias">Bias</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="mitigation"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mitigation Strategy</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select mitigation strategy" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="accept">Accept</SelectItem>
+                    <SelectItem value="transfer">Transfer</SelectItem>
+                    <SelectItem value="limit">Limit</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <FormField
+          control={form.control}
+          name="systemDetails"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>System Details</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Details about affected systems"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <div className="flex justify-between">
+          <div>
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={handleDelete}
+              disabled={deleteRiskMutation.isPending}
+            >
+              {isDeleting ? "Confirm Delete" : "Delete Risk"}
+              {deleteRiskMutation.isPending && (
+                <div className="ml-2 animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              )}
+            </Button>
+          </div>
+          <div className="flex space-x-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              disabled={updateRiskMutation.isPending}
+            >
+              {updateRiskMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Form>
+  );
+}
+
+// New risk form component
+function NewRiskForm({ onCancel }: { onCancel: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const form = useForm({
+    defaultValues: {
+      title: "",
+      description: "",
+      severity: "medium",
+      impact: "medium",
+      likelihood: "medium",
+      category: "security",
+      systemDetails: "",
+      status: "open",
+      mitigation: "none"
+    }
+  });
+  
+  const createRiskMutation = useMutation({
+    mutationFn: async (values: any) => {
+      // Extract mitigation strategy and handle it separately
+      const { mitigation, ...riskValues } = values;
+      
+      // Create the risk item first
+      const res = await apiRequest("POST", "/api/risk-items", {
+        ...riskValues,
+        hasMitigation: mitigation !== "none"
+      });
+      
+      const riskItem = await res.json();
+      
+      // If mitigation is selected, create a mitigation record
+      if (mitigation && mitigation !== "none" && riskItem && riskItem.id) {
+        const mitigationData = {
+          description: `Applied ${mitigation} mitigation strategy`,
+          status: "planned",
+          notes: `Risk will be ${mitigation}ed according to organization policy.`
+        };
+        
+        await apiRequest("POST", `/api/risk-items/${riskItem.id}/mitigations`, mitigationData);
+      }
+      
+      return riskItem;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      form.reset();
+      toast({
+        title: "Risk created",
+        description: "The risk item has been created successfully.",
+      });
+      onCancel();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to create risk: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const onSubmit = (values: any) => {
+    createRiskMutation.mutate(values);
+  };
+  
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Risk title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Detailed description of the risk"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="severity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Severity</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select severity" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="impact"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Impact</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select impact" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="likelihood"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Likelihood</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select likelihood" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Category</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="security">Security</SelectItem>
+                    <SelectItem value="privacy">Privacy</SelectItem>
+                    <SelectItem value="bias">Bias</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <FormField
+          control={form.control}
+          name="systemDetails"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>System Details</FormLabel>
+              <FormControl>
+                <Textarea 
+                  placeholder="Details about the affected system (optional)"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        <DialogFooter>
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit"
+            disabled={createRiskMutation.isPending}
+          >
+            {createRiskMutation.isPending ? "Creating..." : "Create Risk"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
 
 export default function RiskRegisterPage() {
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedRiskId, setSelectedRiskId] = useState<number | null>(null);
+  const [isNewRiskDialogOpen, setIsNewRiskDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Query risk items
-  const { data: riskItems, isLoading } = useQuery<RiskItem[]>({
+  // Query risk items with their latest mitigations
+  const { data: riskItems, isLoading } = useQuery<EnrichedRiskItem[]>({
     queryKey: ["/api/risk-items"],
+  });
+  
+  // Mutation for deleting risk items
+  const deleteRiskMutation = useMutation({
+    mutationFn: async (riskId: number) => {
+      const res = await apiRequest("DELETE", `/api/risk-items/${riskId}`, {});
+      return res.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/risk-items"] });
+      toast({
+        title: "Risk deleted",
+        description: "The risk item and its mitigations have been deleted successfully.",
+      });
+      setIsDeleteConfirmOpen(false);
+      setSelectedRiskId(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete risk: ${error.message}`,
+        variant: "destructive",
+      });
+    }
   });
 
   // Filter the data based on selected filters
@@ -38,38 +1064,15 @@ export default function RiskRegisterPage() {
       })
     : [];
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case "critical":
-        return "text-red-600 bg-red-100 border-red-200";
-      case "high":
-        return "text-orange-600 bg-orange-100 border-orange-200";
-      case "medium":
-        return "text-yellow-600 bg-yellow-100 border-yellow-200";
-      case "low":
-        return "text-green-600 bg-green-100 border-green-200";
-      default:
-        return "text-gray-600 bg-gray-100 border-gray-200";
-    }
-  };
+  // Display handling for risk data visualization
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "open":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case "in_progress":
-        return <Clock className="h-4 w-4 text-blue-500" />;
-      case "resolved":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      default:
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-    }
-  };
+  // Removed redundant helper functions - now using inline conditional rendering
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <TopNavbar title="Risk Register" />
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -110,9 +1113,31 @@ export default function RiskRegisterPage() {
         </Card>
       </div>
 
+      {/* Risk Items Table Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Risk Items</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Risk Items</CardTitle>
+            <Dialog open={isNewRiskDialogOpen} onOpenChange={setIsNewRiskDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-9">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Risk
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Add New Risk</DialogTitle>
+                  <DialogDescription>
+                    Create a new risk item to track and manage.
+                  </DialogDescription>
+                </DialogHeader>
+                <NewRiskForm onCancel={() => setIsNewRiskDialogOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          {/* Filters */}
           <div className="flex flex-wrap gap-2 mt-2">
             <div>
               <span className="text-sm font-medium mr-2">Severity:</span>
@@ -139,7 +1164,7 @@ export default function RiskRegisterPage() {
             </div>
             <div>
               <span className="text-sm font-medium mr-2">Status:</span>
-              {["All", "Open", "In_Progress", "Resolved"].map((status) => (
+              {["All", "Open", "Mitigated", "Closed"].map((status) => (
                 <Button
                   key={status}
                   variant={
@@ -156,7 +1181,7 @@ export default function RiskRegisterPage() {
                     )
                   }
                 >
-                  {status.replace("_", " ")}
+                  {status}
                 </Button>
               ))}
             </div>
@@ -169,7 +1194,7 @@ export default function RiskRegisterPage() {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No risk items found. Check filters or add risks from AI Usage Finder.
+              No risk items found. Check filters or add risks with the "Add New Risk" button.
             </div>
           ) : (
             <Table>
@@ -177,7 +1202,9 @@ export default function RiskRegisterPage() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Severity</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Mitigation Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -189,7 +1216,11 @@ export default function RiskRegisterPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={`${getSeverityColor(item.severity)}`}
+                        className={item.severity === 'critical' ? 'text-red-600 bg-red-100 border-red-200' : 
+                          item.severity === 'high' ? 'text-orange-600 bg-orange-100 border-orange-200' : 
+                          item.severity === 'medium' ? 'text-yellow-600 bg-yellow-100 border-yellow-200' : 
+                          item.severity === 'low' ? 'text-green-600 bg-green-100 border-green-200' : 
+                          'text-gray-600 bg-gray-100 border-gray-200'}
                       >
                         {item.severity.charAt(0).toUpperCase() +
                           item.severity.slice(1)}
@@ -197,20 +1228,119 @@ export default function RiskRegisterPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
-                        {getStatusIcon(item.status)}
+                        {item.category && (
+                          <>
+                            {item.category === 'security' && <Shield className="h-4 w-4 mr-1" />}
+                            {item.category === 'privacy' && <Lock className="h-4 w-4 mr-1" />}
+                            {item.category === 'bias' && <BarChart2 className="h-4 w-4 mr-1" />}
+                            <span>{item.category.charAt(0).toUpperCase() + item.category.slice(1)}</span>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center">
+                        {item.status === 'open' ? <AlertCircle className="h-4 w-4 text-red-500" /> :
+                         item.status === 'mitigated' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> :
+                         item.status === 'in-progress' ? <Clock className="h-4 w-4 text-yellow-500" /> :
+                         <AlertCircle className="h-4 w-4 text-gray-500" />}
                         <span className="ml-2">
-                          {item.status.replace("_", " ").charAt(0).toUpperCase() +
-                            item.status.replace("_", " ").slice(1)}
+                          {item.status.charAt(0).toUpperCase() +
+                            item.status.slice(1)}
                         </span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.latestMitigation ? (
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            item.latestMitigation.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                            item.latestMitigation.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 
+                            item.latestMitigation.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }
+                        >
+                          {item.latestMitigation.status.replace('-', ' ').charAt(0).toUpperCase() + 
+                            item.latestMitigation.status.replace('-', ' ').slice(1)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-100 text-gray-800">
+                          No mitigation
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {new Date(item.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
-                      <Button variant="outline" size="sm">
-                        View Details
-                      </Button>
+                      <div className="flex gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setSelectedRiskId(item.id)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" /> View
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Risk Details</DialogTitle>
+                            </DialogHeader>
+                            {selectedRiskId && (
+                              <RiskDetails 
+                                riskId={selectedRiskId} 
+                                onClose={() => setSelectedRiskId(null)} 
+                              />
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedRiskId(item.id);
+                                setIsEditDialogOpen(true);
+                              }}
+                            >
+                              <PenLine className="h-4 w-4 mr-2" />
+                              Edit Risk
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedRiskId(item.id);
+                                // Open edit dialog with mitigation tab active
+                                setIsEditDialogOpen(true);
+                              }}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Add Mitigation
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => {
+                                setSelectedRiskId(item.id);
+                                if (confirm("Are you sure you want to delete this risk item? This will also delete all associated mitigations.")) {
+                                  deleteRiskMutation.mutate(item.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -219,6 +1349,40 @@ export default function RiskRegisterPage() {
           )}
         </CardContent>
       </Card>
+      
+      {/* Edit Risk Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Risk</DialogTitle>
+            <DialogDescription>
+              Update risk details and mitigation strategies
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRiskId && (
+            <EditRiskForm 
+              riskId={selectedRiskId} 
+              onCancel={() => {
+                setIsEditDialogOpen(false);
+                setSelectedRiskId(null);
+              }} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* New Risk Dialog */}
+      <Dialog open={isNewRiskDialogOpen} onOpenChange={setIsNewRiskDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Risk</DialogTitle>
+            <DialogDescription>
+              Create a new risk item and optionally add mitigation details
+            </DialogDescription>
+          </DialogHeader>
+          <NewRiskForm onCancel={() => setIsNewRiskDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,21 +11,31 @@ import {
   organizations, 
   aiSystems,
   riskItems,
+  riskMitigations,
   complianceIssues,
   githubScanConfigs,
   githubScanResults,
   githubScanSummaries,
   biasAnalysisScans,
   biasAnalysisResults,
+  frontierModelsList,
+  frontierModelsAlertsConfig,
+  frontierModelsAlerts,
+  infraInventory,
   insertUserSchema,
   insertOrganizationSchema,
   insertRoleSchema,
   insertAiSystemSchema,
   insertRiskItemSchema,
+  insertRiskMitigationSchema,
   insertComplianceIssueSchema,
+  insertInfraInventorySchema,
   insertGithubScanConfigSchema,
   insertBiasAnalysisScanSchema,
-  insertBiasAnalysisResultSchema
+  insertBiasAnalysisResultSchema,
+  insertFrontierModelSchema,
+  insertFrontierModelsAlertsConfigSchema,
+  insertFrontierModelsAlertsSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
 
@@ -471,6 +481,169 @@ async function scanGitHubRepositories(config: typeof githubScanConfigs.$inferSel
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication endpoints
   setupAuth(app);
+  
+  // Real OpenAI Chat API for Incognito ChatGPT
+  app.post("/api/mock-chat", isAuthenticated, async (req, res) => {
+    try {
+      const { prompt, fileId } = req.body;
+      const user = req.user;
+      
+      if (!prompt || !user) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      // Extract organization ID safely, handling different user object structures
+      let organizationId: number;
+      if (typeof user.organization === 'object' && user.organization !== null) {
+        organizationId = user.organization.id;
+      } else if (user.organizationId) {
+        organizationId = user.organizationId;
+      } else {
+        organizationId = 1; // Default to organization ID 1 if not found
+      }
+      
+      // If a file ID was provided, get the file content
+      let fileContent: string | undefined = undefined;
+      if (fileId) {
+        const file = await storage.getDataStoreFileById(fileId);
+        if (file && file.type === 'file') {
+          fileContent = file.content;
+        }
+      }
+      
+      // Get response from OpenAI
+      const { generateChatResponse } = await import('./openai');
+      const response = await generateChatResponse(prompt, fileContent);
+      
+      // Store the prompt and response
+      const promptAnswer = await storage.createPromptAnswer({
+        prompt,
+        response,
+        userId: typeof user.id === 'number' ? user.id : 
+                (user as any).id || 1, // Fallback user ID if type issues
+        organizationId
+      });
+      
+      return res.status(200).json(promptAnswer);
+    } catch (error: unknown) {
+      console.error("Chat API error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({ error: `Failed to process chat request: ${errorMessage}` });
+    }
+  });
+  
+  // Data Store Files API for Incognito ChatGPT
+  app.get("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const parentId = req.query.parentId ? parseInt(req.query.parentId as string) : undefined;
+      
+      const files = await storage.getDataStoreFiles(user.id, parentId);
+      return res.status(200).json(files);
+    } catch (error) {
+      console.error("Data store files error:", error);
+      return res.status(500).json({ error: "Failed to get data store files" });
+    }
+  });
+  
+  app.post("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const { name, path, content, type, parentId } = req.body;
+      
+      if (!name || !type) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      const file = await storage.createDataStoreFile({
+        name,
+        path: path || name,
+        content: content || "",
+        type,
+        userId: user.id,
+        organizationId,
+        parentId
+      });
+      
+      return res.status(201).json(file);
+    } catch (error) {
+      console.error("Create data store file error:", error);
+      return res.status(500).json({ error: "Failed to create data store file" });
+    }
+  });
+  
+  app.put("/api/data-store/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const fileData = req.body;
+      
+      const file = await storage.updateDataStoreFile(id, fileData);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error("Update data store file error:", error);
+      return res.status(500).json({ error: "Failed to update data store file" });
+    }
+  });
+  
+  app.delete("/api/data-store/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const success = await storage.deleteDataStoreFile(id);
+      if (!success) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete data store file error:", error);
+      return res.status(500).json({ error: "Failed to delete data store file" });
+    }
+  });
+  
+  // Bulk delete all files for a user
+  app.delete("/api/data-store", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      
+      const success = await storage.deleteAllDataStoreFiles(user.id);
+      if (!success) {
+        return res.status(500).json({ error: "Failed to delete all files" });
+      }
+      
+      return res.status(200).json({ message: "All files deleted successfully" });
+    } catch (error) {
+      console.error("Delete all data store files error:", error);
+      return res.status(500).json({ error: "Failed to delete all data store files" });
+    }
+  });
 
   // Dashboard data
   app.get("/api/dashboard", isAuthenticated, async (req, res) => {
@@ -1132,22 +1305,394 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Risk Register API Endpoints
   
-  // Get all risk items for the organization
+  // Get all risk items for the organization with their latest mitigation
   app.get("/api/risk-items", isAuthenticated, async (req, res) => {
     try {
       const organizationId = req.user?.organization?.[0] || 1;
       
+      // Get all risk items
       const items = await db
         .select()
         .from(riskItems)
         .where(eq(riskItems.organizationId, organizationId))
         .orderBy(desc(riskItems.createdAt));
       
-      res.json(items);
+      // For each risk item, get the latest mitigation
+      const enrichedItems = await Promise.all(items.map(async (item) => {
+        const latestMitigations = await db.query.riskMitigations.findMany({
+          where: and(
+            eq(riskMitigations.riskItemId, item.id),
+            eq(riskMitigations.organizationId, organizationId)
+          ),
+          orderBy: desc(riskMitigations.createdAt),
+          limit: 1
+        });
+        
+        const latestMitigation = latestMitigations.length > 0 ? latestMitigations[0] : null;
+        
+        return {
+          ...item,
+          latestMitigation
+        };
+      }));
+      
+      res.json(enrichedItems);
     } catch (error) {
       console.error("Error fetching risk items:", error);
       res.status(500).json({ 
         message: "Failed to fetch risk items", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get a specific risk item with its mitigations
+  app.get("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get the risk item
+      const [riskItem] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!riskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Get the mitigations for this risk item
+      const mitigations = await db
+        .select()
+        .from(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .orderBy(desc(riskMitigations.createdAt));
+      
+      // Return both the risk item and its mitigations
+      res.json({
+        riskItem,
+        mitigations
+      });
+    } catch (error) {
+      console.error("Error fetching risk item details:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk item details", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Create a new risk item
+  app.post("/api/risk-items", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Create the risk item
+      const [newRiskItem] = await db
+        .insert(riskItems)
+        .values({
+          ...req.body,
+          organizationId,
+          createdById: userId,
+        })
+        .returning();
+      
+      res.status(201).json(newRiskItem);
+    } catch (error) {
+      console.error("Error creating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to create risk item", 
+        error: error.message 
+      });
+    }
+  });
+  
+  // Update a risk item
+  app.put("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Check if the risk item exists and belongs to the user's organization
+      const [existingRisk] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Update the risk item
+      const [updatedRiskItem] = await db
+        .update(riskItems)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ))
+        .returning();
+      
+      res.json(updatedRiskItem);
+    } catch (error) {
+      console.error("Error updating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk item", 
+        error: error.message 
+      });
+    }
+  });
+  
+  // Delete a risk item and its mitigations
+  app.delete("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Verify the risk item exists and belongs to the user's organization
+      const [existingRisk] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!existingRisk) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // First delete all associated mitigations
+      await db
+        .delete(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ));
+      
+      // Then delete the risk item
+      await db
+        .delete(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      res.status(200).json({ message: "Risk item and its mitigations deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to delete risk item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update a risk item
+  app.patch("/api/risk-items/:id", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Update the risk item
+      const [updatedRiskItem] = await db
+        .update(riskItems)
+        .set({
+          ...req.body,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ))
+        .returning();
+      
+      if (!updatedRiskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      res.json(updatedRiskItem);
+    } catch (error) {
+      console.error("Error updating risk item:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Risk Mitigations API Endpoints
+  
+  // Get all mitigations for a risk item
+  app.get("/api/risk-items/:riskId/mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.riskId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      const mitigations = await db
+        .select()
+        .from(riskMitigations)
+        .where(and(
+          eq(riskMitigations.riskItemId, riskId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .orderBy(desc(riskMitigations.createdAt));
+      
+      res.json(mitigations);
+    } catch (error) {
+      console.error("Error fetching risk mitigations:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch risk mitigations", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get all mitigations across all risks
+  app.get("/api/risk-mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Get mitigations with associated risk item information
+      const mitigations = await db.query.riskMitigations.findMany({
+        where: eq(riskMitigations.organizationId, organizationId),
+        with: {
+          riskItem: true,
+          createdBy: {
+            columns: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true
+            }
+          }
+        },
+        orderBy: [desc(riskMitigations.createdAt)]
+      });
+      
+      res.json(mitigations);
+    } catch (error) {
+      console.error("Error fetching all risk mitigations:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch all risk mitigations", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Add a mitigation to a risk item
+  app.post("/api/risk-items/:riskId/mitigations", isAuthenticated, async (req, res) => {
+    try {
+      const riskId = parseInt(req.params.riskId);
+      const organizationId = req.user?.organization?.[0] || 1;
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Check if risk item exists and belongs to the organization
+      const [riskItem] = await db
+        .select()
+        .from(riskItems)
+        .where(and(
+          eq(riskItems.id, riskId),
+          eq(riskItems.organizationId, organizationId)
+        ));
+      
+      if (!riskItem) {
+        return res.status(404).json({ message: "Risk item not found" });
+      }
+      
+      // Create the mitigation
+      const [newMitigation] = await db
+        .insert(riskMitigations)
+        .values({
+          ...req.body,
+          riskItemId: riskId,
+          organizationId,
+          createdById: userId
+        })
+        .returning();
+      
+      // If status is included in the mitigation, update the risk item status accordingly
+      if (req.body.status === 'completed') {
+        await db
+          .update(riskItems)
+          .set({ status: 'mitigated', updatedAt: new Date() })
+          .where(eq(riskItems.id, riskId));
+      }
+      
+      res.status(201).json(newMitigation);
+    } catch (error) {
+      console.error("Error creating risk mitigation:", error);
+      res.status(500).json({ 
+        message: "Failed to create risk mitigation", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update a mitigation
+  app.patch("/api/risk-mitigations/:id", isAuthenticated, async (req, res) => {
+    try {
+      const mitigationId = parseInt(req.params.id);
+      const organizationId = req.user?.organization?.[0] || 1;
+      
+      // Update the mitigation
+      const [updatedMitigation] = await db
+        .update(riskMitigations)
+        .set({
+          ...req.body,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(riskMitigations.id, mitigationId),
+          eq(riskMitigations.organizationId, organizationId)
+        ))
+        .returning();
+      
+      if (!updatedMitigation) {
+        return res.status(404).json({ message: "Mitigation not found" });
+      }
+      
+      // If status is updated to 'completed', also update the risk item status
+      if (req.body.status === 'completed') {
+        await db
+          .update(riskItems)
+          .set({ status: 'mitigated', updatedAt: new Date() })
+          .where(eq(riskItems.id, updatedMitigation.riskItemId));
+      }
+      
+      res.json(updatedMitigation);
+    } catch (error) {
+      console.error("Error updating risk mitigation:", error);
+      res.status(500).json({ 
+        message: "Failed to update risk mitigation", 
         error: error.message 
       });
     }
@@ -1533,7 +2078,474 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return results;
   }
 
+  // Infrastructure Inventory endpoints
+  // Get all infrastructure inventory items for the organization
+  app.get("/api/infra-inventory", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const items = await storage.getInfraInventory(organizationId);
+      res.status(200).json(items);
+    } catch (error) {
+      console.error("Error getting infrastructure inventory:", error);
+      res.status(500).json({ 
+        message: "Failed to get infrastructure inventory", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get a specific infrastructure inventory item
+  app.get("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const item = await storage.getInfraInventoryById(id);
+      
+      if (!item) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      res.status(200).json(item);
+    } catch (error) {
+      console.error("Error getting infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to get infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Create a new infrastructure inventory item
+  app.post("/api/infra-inventory", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const userId = user.id;
+      
+      // Validate request data
+      const validatedData = insertInfraInventorySchema.parse({
+        ...req.body,
+        organizationId,
+        createdById: userId
+      });
+      
+      const newItem = await storage.createInfraInventory(validatedData);
+      res.status(201).json(newItem);
+    } catch (error) {
+      console.error("Error creating infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to create infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update an existing infrastructure inventory item
+  app.put("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      // First check if the item exists and belongs to the user's organization
+      const existingItem = await storage.getInfraInventoryById(id);
+      if (!existingItem) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      if (existingItem.organizationId !== organizationId) {
+        return res.status(403).json({ message: "You don't have permission to update this item" });
+      }
+      
+      // Update the item
+      const updatedItem = await storage.updateInfraInventory(id, req.body);
+      res.status(200).json(updatedItem);
+    } catch (error) {
+      console.error("Error updating infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to update infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Delete an infrastructure inventory item
+  app.delete("/api/infra-inventory/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      // First check if the item exists and belongs to the user's organization
+      const existingItem = await storage.getInfraInventoryById(id);
+      if (!existingItem) {
+        return res.status(404).json({ message: "Infrastructure inventory item not found" });
+      }
+      
+      if (existingItem.organizationId !== organizationId) {
+        return res.status(403).json({ message: "You don't have permission to delete this item" });
+      }
+      
+      // Delete the item
+      const success = await storage.deleteInfraInventory(id);
+      if (success) {
+        res.status(200).json({ message: "Infrastructure inventory item deleted successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to delete infrastructure inventory item" });
+      }
+    } catch (error) {
+      console.error("Error deleting infrastructure inventory item:", error);
+      res.status(500).json({ 
+        message: "Failed to delete infrastructure inventory item", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Seed initial infrastructure inventory data for the organization
+  app.post("/api/infra-inventory/seed", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+      
+      const userId = user.id;
+      
+      // Sample dataset with icons
+      const sampleData = [
+        {
+          label: "Linux On-Prem",
+          category: "onprem",
+          provider: null,
+          count: 3,
+          icon: "linux",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "Windows On-Prem",
+          category: "onprem",
+          provider: null,
+          count: 5,
+          icon: "windows",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "AWS EC2",
+          category: "cloud",
+          provider: "aws",
+          count: 20,
+          icon: "cloud-aws",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "Azure App Instances",
+          category: "cloud",
+          provider: "azure",
+          count: 5,
+          icon: "cloud-azure",
+          organizationId,
+          createdById: userId
+        },
+        {
+          label: "GitHub Repositories",
+          category: "sourcecontrol",
+          provider: "github",
+          count: 30,
+          icon: "github",
+          organizationId,
+          createdById: userId
+        }
+      ];
+      
+      // First check if there's already data for this organization
+      const existingItems = await storage.getInfraInventory(organizationId);
+      if (existingItems.length > 0) {
+        return res.status(200).json({ 
+          message: "Infrastructure inventory already has data", 
+          items: existingItems 
+        });
+      }
+      
+      // Create all the items
+      const createdItems = [];
+      for (const item of sampleData) {
+        const newItem = await storage.createInfraInventory(item);
+        createdItems.push(newItem);
+      }
+      
+      res.status(201).json({
+        message: "Sample infrastructure inventory data created successfully",
+        items: createdItems
+      });
+    } catch (error) {
+      console.error("Error seeding infrastructure inventory data:", error);
+      res.status(500).json({ 
+        message: "Failed to seed infrastructure inventory data", 
+        error: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
+
+  // Frontier Models endpoints
+  app.get('/api/frontier-models', isAuthenticated, async (req, res) => {
+    try {
+      const models = await db.select().from(frontierModelsList).orderBy(frontierModelsList.name);
+      res.json(models);
+    } catch (error) {
+      console.error('Error fetching frontier models:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier models' });
+    }
+  });
+
+  app.get('/api/frontier-models/alerts-config', isAuthenticated, async (req, res) => {
+    try {
+      const userOrgId = req.user.organization.id;
+      
+      const alertConfigs = await db.select({
+        id: frontierModelsAlertsConfig.id,
+        model_id: frontierModelsAlertsConfig.model_id,
+        category: frontierModelsAlertsConfig.category,
+        created_at: frontierModelsAlertsConfig.created_at,
+        modelName: frontierModelsList.name,
+        modelProvider: frontierModelsList.provider,
+      })
+      .from(frontierModelsAlertsConfig)
+      .innerJoin(
+        frontierModelsList, 
+        eq(frontierModelsAlertsConfig.model_id, frontierModelsList.id)
+      )
+      .where(eq(frontierModelsAlertsConfig.organization_id, userOrgId))
+      .orderBy(frontierModelsAlertsConfig.created_at);
+      
+      res.json(alertConfigs);
+    } catch (error) {
+      console.error('Error fetching frontier model alert configs:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier model alert configs' });
+    }
+  });
+
+  app.post('/api/frontier-models/alerts-config', isAuthenticated, async (req, res) => {
+    try {
+      const { model_id, category } = req.body;
+      const userOrgId = req.user.organization.id;
+      const userId = req.user.id;
+      
+      // Validate input
+      if (!model_id || !category) {
+        return res.status(400).json({ error: 'Model ID and category are required' });
+      }
+      
+      if (!['security', 'feature'].includes(category)) {
+        return res.status(400).json({ error: 'Category must be either "security" or "feature"' });
+      }
+      
+      // Check if config already exists
+      const existingConfig = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.model_id, model_id),
+            eq(frontierModelsAlertsConfig.category, category),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (existingConfig.length > 0) {
+        return res.status(409).json({ error: 'Alert config for this model and category already exists' });
+      }
+      
+      // Create new alert config
+      const [newConfig] = await db.insert(frontierModelsAlertsConfig)
+        .values({
+          model_id,
+          category,
+          organization_id: userOrgId,
+          created_by_id: userId
+        })
+        .returning();
+      
+      res.status(201).json(newConfig);
+    } catch (error) {
+      console.error('Error creating frontier model alert config:', error);
+      res.status(500).json({ error: 'Failed to create frontier model alert config' });
+    }
+  });
+
+  app.delete('/api/frontier-models/alerts-config/:id', isAuthenticated, async (req, res) => {
+    try {
+      const configId = parseInt(req.params.id);
+      const userOrgId = req.user.organization.id;
+      
+      if (isNaN(configId)) {
+        return res.status(400).json({ error: 'Invalid config ID' });
+      }
+      
+      // Check if config exists and belongs to user's organization
+      const config = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.id, configId),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: 'Alert config not found' });
+      }
+      
+      // Delete related alerts first
+      await db.delete(frontierModelsAlerts)
+        .where(eq(frontierModelsAlerts.alert_config_id, configId));
+      
+      // Delete the config
+      await db.delete(frontierModelsAlertsConfig)
+        .where(eq(frontierModelsAlertsConfig.id, configId));
+      
+      res.status(200).json({ message: 'Alert config deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting frontier model alert config:', error);
+      res.status(500).json({ error: 'Failed to delete frontier model alert config' });
+    }
+  });
+
+  app.get('/api/frontier-models/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const userOrgId = req.user.organization.id;
+      
+      const alerts = await db.select({
+        id: frontierModelsAlerts.id,
+        title: frontierModelsAlerts.title,
+        description: frontierModelsAlerts.description,
+        url: frontierModelsAlerts.url,
+        date_published: frontierModelsAlerts.date_published,
+        created_at: frontierModelsAlerts.created_at,
+        config_id: frontierModelsAlertsConfig.id,
+        category: frontierModelsAlertsConfig.category,
+        model_name: frontierModelsList.name,
+        model_provider: frontierModelsList.provider,
+      })
+      .from(frontierModelsAlerts)
+      .innerJoin(
+        frontierModelsAlertsConfig,
+        eq(frontierModelsAlerts.alert_config_id, frontierModelsAlertsConfig.id)
+      )
+      .innerJoin(
+        frontierModelsList,
+        eq(frontierModelsAlertsConfig.model_id, frontierModelsList.id)
+      )
+      .where(eq(frontierModelsAlerts.organization_id, userOrgId))
+      .orderBy(desc(frontierModelsAlerts.date_published));
+      
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching frontier model alerts:', error);
+      res.status(500).json({ error: 'Failed to fetch frontier model alerts' });
+    }
+  });
+
+  app.post('/api/frontier-models/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const { alert_config_id, title, description, url, date_published } = req.body;
+      const userOrgId = req.user.organization.id;
+      
+      // Validate input
+      if (!alert_config_id || !title || !date_published) {
+        return res.status(400).json({ error: 'Alert config ID, title, and date published are required' });
+      }
+      
+      // Check if config exists and belongs to user's organization
+      const config = await db.select()
+        .from(frontierModelsAlertsConfig)
+        .where(
+          and(
+            eq(frontierModelsAlertsConfig.id, alert_config_id),
+            eq(frontierModelsAlertsConfig.organization_id, userOrgId)
+          )
+        );
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: 'Alert config not found' });
+      }
+      
+      // Create new alert
+      const [newAlert] = await db.insert(frontierModelsAlerts)
+        .values({
+          alert_config_id,
+          title,
+          description: description || null,
+          url: url || null,
+          date_published: new Date(date_published),
+          organization_id: userOrgId
+        })
+        .returning();
+      
+      res.status(201).json(newAlert);
+    } catch (error) {
+      console.error('Error creating frontier model alert:', error);
+      res.status(500).json({ error: 'Failed to create frontier model alert' });
+    }
+  });
+
+  app.delete('/api/frontier-models/alerts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const alertId = parseInt(req.params.id);
+      const userOrgId = req.user.organization.id;
+      
+      if (isNaN(alertId)) {
+        return res.status(400).json({ error: 'Invalid alert ID' });
+      }
+      
+      // Check if alert exists and belongs to user's organization
+      const alert = await db.select()
+        .from(frontierModelsAlerts)
+        .where(
+          and(
+            eq(frontierModelsAlerts.id, alertId),
+            eq(frontierModelsAlerts.organization_id, userOrgId)
+          )
+        );
+      
+      if (alert.length === 0) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Delete the alert
+      await db.delete(frontierModelsAlerts)
+        .where(eq(frontierModelsAlerts.id, alertId));
+      
+      res.status(200).json({ message: 'Alert deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting frontier model alert:', error);
+      res.status(500).json({ error: 'Failed to delete frontier model alert' });
+    }
+  });
 
   return httpServer;
 }
