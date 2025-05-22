@@ -38,6 +38,7 @@ import {
   insertFrontierModelsAlertsSchema
 } from "@shared/schema";
 import { isAuthenticated } from "./auth";
+import { Parser } from 'json2csv';
 
 // List of common AI/ML libraries to detect in repositories
 const AI_LIBRARIES = [
@@ -1804,7 +1805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const scanId = parseInt(req.params.scanId);
       const organizationId = req.user?.organization?.[0] || 1;
-      
+
       // Get the scan
       const [scan] = await db.select()
         .from(biasAnalysisScans)
@@ -1814,154 +1815,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eq(biasAnalysisScans.organizationId, organizationId)
           )
         );
-      
+
       if (!scan) {
         return res.status(404).json({ message: "Bias analysis scan not found" });
       }
-      
+
       if (scan.status !== "pending") {
         return res.status(400).json({ message: "Can only process scans in pending status" });
       }
-      
+
       // Update scan to processing status
       await db.update(biasAnalysisScans)
         .set({ status: "processing" })
         .where(eq(biasAnalysisScans.id, scanId));
-      
+
       // Determine the data source and how to process it
       let dataToAnalyze = null;
-      
+      let protected_attributes = req.body.protected_attributes || ["gender", "race"];
+      let privileged_groups = req.body.privileged_groups || [{ gender: 1 }, { race: 1 }];
+      let unprivileged_groups = req.body.unprivileged_groups || [{ gender: 0 }, { race: 0 }];
+
       if (scan.dataSource === "json") {
-        // Use fileData for json data
         if (!req.body.fileData) {
           return res.status(400).json({ message: "JSON data is required" });
         }
-        
-        try {
-          // Try to parse the JSON data
-          if (typeof req.body.fileData === 'string') {
-            // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
-            if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
-              return res.status(400).json({ message: "Invalid JSON format. Uploaded file appears to be HTML." });
-            }
-            
-            dataToAnalyze = JSON.parse(req.body.fileData);
-          } else {
-            dataToAnalyze = req.body.fileData;
-          }
-        } catch (error) {
-          console.error("Error parsing JSON:", error);
-          return res.status(400).json({ 
-            message: `Invalid JSON format: ${error.message}` 
-          });
-        }
+        dataToAnalyze = typeof req.body.fileData === 'string' ? JSON.parse(req.body.fileData) : req.body.fileData;
       } else if (scan.dataSource === "csv") {
         if (!req.body.fileData) {
           return res.status(400).json({ message: "CSV data is required" });
         }
-        
-        try {
-          // Check if the data starts with HTML DOCTYPE (which would indicate an HTML file was uploaded)
-          if (req.body.fileData.trim().startsWith('<!DOCTYPE') || req.body.fileData.trim().startsWith('<html')) {
-            return res.status(400).json({ message: "Invalid CSV format. Uploaded file appears to be HTML." });
-          }
-          
-          // Convert CSV to JSON
-          const csvData = req.body.fileData;
-          // Simple CSV parsing (for production, use a proper CSV parser)
-          const lines = csvData.split("\n");
-          
-          if (lines.length === 0) {
-            return res.status(400).json({ message: "CSV data is empty" });
-          }
-          
-          const headers = lines[0].split(",").map(h => h.trim());
-          dataToAnalyze = [];
-          
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            
-            const values = line.split(",").map(v => v.trim());
-            const dataRow = {};
-            
-            headers.forEach((header, idx) => {
-              dataRow[header] = values[idx] || null;
-            });
-            
-            dataToAnalyze.push(dataRow);
-          }
-          
-          if (dataToAnalyze.length === 0) {
-            return res.status(400).json({ message: "No valid data rows found in CSV" });
-          }
-        } catch (error) {
-          console.error("Error parsing CSV:", error);
-          return res.status(400).json({ 
-            message: `Invalid CSV format: ${error.message}` 
+        // Convert CSV to JSON (simple parser)
+        const csvData = req.body.fileData;
+        const lines = csvData.split("\n");
+        if (lines.length === 0) {
+          return res.status(400).json({ message: "CSV data is empty" });
+        }
+        const headers = lines[0].split(",").map(h => h.trim());
+        dataToAnalyze = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const values = line.split(",").map(v => v.trim());
+          const dataRow = {};
+          headers.forEach((header, idx) => {
+            dataRow[header] = values[idx] || null;
           });
+          dataToAnalyze.push(dataRow);
+        }
+        if (dataToAnalyze.length === 0) {
+          return res.status(400).json({ message: "No valid data rows found in CSV" });
         }
       } else if (scan.dataSource === "webhook") {
-        // For webhook data source, we need a webhook URL
         if (!req.body.webhookUrl) {
           return res.status(400).json({ message: "Webhook URL is required" });
         }
-        
-        try {
-          // Use the webhook URL to fetch data
-          const webhookResponse = await fetch(req.body.webhookUrl);
-          
-          if (!webhookResponse.ok) {
-            return res.status(400).json({ 
-              message: `Failed to fetch data from webhook: ${webhookResponse.statusText}` 
-            });
-          }
-          
-          // Try to parse the webhook response as JSON
-          const webhookData = await webhookResponse.json();
-          dataToAnalyze = webhookData;
-        } catch (error) {
-          console.error("Error fetching from webhook:", error);
-          return res.status(400).json({ 
-            message: `Error fetching from webhook: ${error.message}` 
-          });
+        const webhookResponse = await fetch(req.body.webhookUrl);
+        if (!webhookResponse.ok) {
+          return res.status(400).json({ message: `Failed to fetch data from webhook: ${webhookResponse.statusText}` });
         }
+        dataToAnalyze = await webhookResponse.json();
       }
-      
+
       if (!dataToAnalyze || (Array.isArray(dataToAnalyze) && dataToAnalyze.length === 0)) {
         await db.update(biasAnalysisScans)
           .set({ status: "failed", completedAt: new Date() })
           .where(eq(biasAnalysisScans.id, scanId));
-          
         return res.status(400).json({ message: "No data to analyze" });
       }
-      
-      // For demonstration, we'll perform bias analysis on the data
-      // In production, this would be a more sophisticated algorithm
-      const biasResults = await analyzeBiasInData(dataToAnalyze, scanId, organizationId);
-      
+
+      // Call Python/AIF360 service
+      const pythonServiceUrl = process.env.BIAS_ANALYSIS_SERVICE_URL || 'http://localhost:5001';
+      const response = await axios.post(`${pythonServiceUrl}/analyze`, {
+        data: dataToAnalyze,
+        protected_attributes,
+        privileged_groups,
+        unprivileged_groups,
+        group_mappings: req.body.group_mappings || undefined
+      });
+
+      // Process and save results
+      const results = response.data.results.map(result => ({
+        scanId: scan.id,
+        organizationId,
+        metricName: result.metric_name,
+        score: result.score,
+        threshold: result.threshold,
+        status: result.status,
+        demographicGroup: result.demographic_group || 'overall',
+        additionalData: JSON.stringify(result.additional_data || {})
+      }));
+      await db.insert(biasAnalysisResults).values(results);
+
       // Update scan to completed status
       await db.update(biasAnalysisScans)
         .set({ status: "completed", completedAt: new Date() })
         .where(eq(biasAnalysisScans.id, scanId));
-      
+
       res.json({
         message: "Bias analysis completed successfully",
         scanId,
-        resultCount: biasResults.length
+        resultCount: results.length
       });
     } catch (error) {
       console.error("Error processing bias analysis:", error);
-      
-      // Update scan to failed status
       await db.update(biasAnalysisScans)
         .set({ status: "failed", completedAt: new Date() })
         .where(eq(biasAnalysisScans.id, parseInt(req.params.scanId)));
-        
       res.status(500).json({ message: "Failed to process bias analysis" });
     }
   });
-  
+
   // Bias analysis function
   async function analyzeBiasInData(data, scanId, organizationId) {
     // This is a simplified bias analysis algorithm
@@ -2547,5 +2510,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bias Analysis endpoints
+  app.post("/api/bias-analysis/analyze", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+
+      const { data, protected_attributes, privileged_groups, unprivileged_groups } = req.body;
+
+      // Create a new scan record
+      const scan = await db.insert(biasAnalysisScans).values({
+        organizationId,
+        name: `Bias Analysis Scan ${new Date().toISOString()}`,
+        status: 'processing',
+        createdById: user.id
+      }).returning();
+
+      // Call Python service for bias analysis
+      const pythonServiceUrl = process.env.BIAS_ANALYSIS_SERVICE_URL || 'http://localhost:5001';
+      const response = await axios.post(`${pythonServiceUrl}/analyze`, {
+        data,
+        protected_attributes,
+        privileged_groups,
+        unprivileged_groups
+      });
+
+      // Process and save results
+      const results = response.data.results.map(result => ({
+        scanId: scan[0].id,
+        organizationId,
+        metricName: result.metric_name,
+        score: result.score,
+        threshold: result.threshold,
+        status: result.status,
+        demographicGroup: result.demographic_group || 'overall',
+        additionalData: JSON.stringify(result.additional_data || {})
+      }));
+
+      // Save results to database
+      await db.insert(biasAnalysisResults).values(results);
+
+      // Update scan status
+      await db.update(biasAnalysisScans)
+        .set({ status: 'completed' })
+        .where(eq(biasAnalysisScans.id, scan[0].id));
+
+      res.status(200).json({
+        scanId: scan[0].id,
+        results
+      });
+    } catch (error) {
+      console.error("Error performing bias analysis:", error);
+      res.status(500).json({ 
+        message: "Failed to perform bias analysis", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get all bias analysis scans for the organization
+  app.get("/api/bias-analysis/scans", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+
+      const scans = await db.select()
+        .from(biasAnalysisScans)
+        .where(eq(biasAnalysisScans.organizationId, organizationId))
+        .orderBy(desc(biasAnalysisScans.createdAt));
+
+      res.status(200).json(scans);
+    } catch (error) {
+      console.error("Error getting bias analysis scans:", error);
+      res.status(500).json({ 
+        message: "Failed to get bias analysis scans", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get results for a specific bias analysis scan
+  app.get("/api/bias-analysis/scans/:scanId", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+
+      const results = await db.select()
+        .from(biasAnalysisResults)
+        .where(
+          and(
+            eq(biasAnalysisResults.scanId, scanId),
+            eq(biasAnalysisResults.organizationId, organizationId)
+          )
+        );
+
+      res.status(200).json(results);
+    } catch (error) {
+      console.error("Error getting bias analysis results:", error);
+      res.status(500).json({ 
+        message: "Failed to get bias analysis results", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Download CSV for a specific bias analysis scan
+  app.get("/api/bias-analysis/scans/:scanId/csv", isAuthenticated, async (req, res) => {
+    try {
+      const scanId = parseInt(req.params.scanId);
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const organizationId = typeof user.organization === 'object' ? user.organization.id : 
+        Array.isArray(user.organization) ? user.organization[0] : user.organization_id || 1;
+
+      const results = await db.select()
+        .from(biasAnalysisResults)
+        .where(
+          and(
+            eq(biasAnalysisResults.scanId, scanId),
+            eq(biasAnalysisResults.organizationId, organizationId)
+          )
+        );
+
+      if (!results || results.length === 0) {
+        return res.status(404).json({ message: "No results found for this scan" });
+      }
+
+      // Convert to CSV using dynamic import
+      const fields = Object.keys(results[0]);
+      const Parser = await getParser();
+      const parser = new Parser({ fields });
+      const csv = parser.parse(results);
+
+      res.header('Content-Type', 'text/csv');
+      res.attachment(`bias_analysis_results_scan_${scanId}.csv`);
+      return res.send(csv);
+    } catch (error) {
+      console.error("Error generating CSV for bias analysis results:", error);
+      res.status(500).json({ message: "Failed to generate CSV" });
+    }
+  });
+
   return httpServer;
+}
+
+// Add dynamic import function
+async function getParser() {
+  const { Parser } = await import('json2csv');
+  return Parser;
 }

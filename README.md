@@ -450,6 +450,66 @@ Roles have associated permissions that control what actions a user can perform:
 
 Users are associated with an organization, and can only access data within their organization, implementing multi-tenancy at the data level. System administrators can manage all organizations through the Platform Admin interface.
 
+## Setup & Usage Instructions
+
+### 1. Clone the Repository
+```sh
+git clone <your-repo-url>
+cd MultiTenantSaaS-1
+```
+
+### 2. Python Backend (Bias Analysis Service)
+
+#### a. Create and activate a virtual environment
+```sh
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+#### b. Install Python dependencies
+```sh
+pip install -r server/services/bias_analysis/requirements.txt
+```
+
+#### c. Start the bias analysis service
+```sh
+cd server/services/bias_analysis
+python main.py
+```
+
+The service will run on `http://localhost:5001` by default.
+
+### 3. Node.js Frontend/Server
+
+#### a. Install Node dependencies
+```sh
+npm install
+```
+
+#### b. Start the development server
+```sh
+npm run dev
+```
+
+### 4. Environment Variables
+- Make sure to set up any required environment variables (see `.env.example` if available).
+- The Python backend uses a `.env` file for configuration (see `server/services/bias_analysis/config.py`).
+
+### 5. Database Setup (Postgres)
+- Ensure you have a running Postgres instance.
+- Update your database connection string in your environment variables if needed.
+- To run migrations and seed the database:
+```sh
+./reset-db.sh
+```
+
+### 6. Running Bias Analysis
+- Use the frontend or send a POST request to `http://localhost:5001/analyze` with your data and protected attributes.
+
+### 7. Notes
+- Do **not** commit your `venv`, `.venv`, or `node_modules` directories. These are ignored via `.gitignore`.
+- If you encounter issues, check the logs in `server/services/bias_analysis/logs/`.
+
 ---
 
-For more information or support, please contact [support@aigoveranceplatform.com](mailto:support@aigoveranceplatform.com).
+For any questions, contact the project maintainer.
