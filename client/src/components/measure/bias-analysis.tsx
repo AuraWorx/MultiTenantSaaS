@@ -416,12 +416,10 @@ export function BiasAnalysis() {
 
     // --- CSV protected attribute validation ---
     if (selectedDataSource === 'csv' && csvColumns.length > 0) {
-      const attrs = protectedAttributes.split(',').map(s => s.trim());
-      const missing = attrs.filter(attr => !csvColumns.includes(attr));
-      if (missing.length > 0) {
+      if (!csvColumns.includes(protectedAttribute)) {
         toast({
-          title: 'Invalid protected attribute(s)',
-          description: `The following protected attribute(s) are not present in the uploaded CSV: ${missing.join(', ')}`,
+          title: 'Invalid protected attribute',
+          description: `The selected protected attribute (${protectedAttribute}) is not present in the uploaded CSV.`,
           variant: 'destructive'
         });
         return;
