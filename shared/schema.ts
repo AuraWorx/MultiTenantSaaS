@@ -382,7 +382,7 @@ export const biasAnalysisResults = pgTable("bias_analysis_results", {
     .references(() => organizations.id),
   metricName: text("metric_name").notNull(),
   metricDescription: text("metric_description"),
-  score: integer("score").notNull(), // 0-100 score
+  score: decimal("score", { precision: 5, scale: 2 }).notNull(), // 0-100 score with 2 decimal places
   threshold: integer("threshold").notNull(), // Threshold for passing/failing
   status: text("status").notNull(), // 'pass', 'warning', 'fail'
   demographicGroup: text("demographic_group"), // Which demographic group this applies to

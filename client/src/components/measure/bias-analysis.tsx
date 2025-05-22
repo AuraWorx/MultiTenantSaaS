@@ -23,6 +23,9 @@ import {
   RefreshCw,
   Loader2
 } from 'lucide-react';
+import { saveAs } from 'file-saver'; // npm install file-saver
+// @ts-ignore
+import Papa from 'papaparse';
 
 // The data types used in the component
 interface BiasAnalysisScan {
@@ -139,25 +142,51 @@ export function BiasAnalysis() {
   const [scanDescription, setScanDescription] = useState('');
   const [selectedDataSource, setSelectedDataSource] = useState<'csv' | 'json' | 'webhook'>('csv');
   
+  // State for protected attributes and group mappings
+  const [protectedAttributes, setProtectedAttributes] = useState<string>('race');
+  const [groupMappings, setGroupMappings] = useState<string>(
+    JSON.stringify({
+      "race": {
+        "privileged": ["White"],
+        "unprivileged": ["Black", "Asian", "Hispanic"]
+      }
+    }, null, 2)
+  );
+  
+  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [protectedAttribute, setProtectedAttribute] = useState<string>("");
+  
   // Fetch all scans
   const { 
     data: scans, 
     isLoading: isLoadingScans,
     refetch: refetchScans
-  } = useQuery({
+  } = useQuery<BiasAnalysisScan[]>({
     queryKey: ['/api/bias-analysis/scans'],
     queryFn: getQueryFn({ on401: 'throw' })
   });
   
   // Fetch scan details (results) for a selected scan
-  const { 
+  const {
     data: selectedScan,
     isLoading: isLoadingScanDetails
   } = useQuery({
-    queryKey: ['/api/bias-analysis/results', selectedScanId],
-    queryFn: getQueryFn({ on401: 'throw' }),
+    queryKey: ['/api/bias-analysis/scans', selectedScanId],
+    queryFn: async () => {
+      if (!selectedScanId) return null;
+      const res = await fetch(`/api/bias-analysis/scans/${selectedScanId}`, { credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    },
     enabled: !!selectedScanId
   });
+  
+  // Auto-select the most recent scan if none is selected
+  useEffect(() => {
+    if (Array.isArray(scans) && scans.length > 0 && !selectedScanId) {
+      setSelectedScanId(scans[0].id); // or scans[scans.length - 1].id for most recent
+    }
+  }, [scans, selectedScanId]);
   
   // Fetch available AI systems
   const { 
@@ -167,92 +196,94 @@ export function BiasAnalysis() {
     queryFn: getQueryFn({ on401: 'throw' })
   });
   
-  // Handle file upload with validation
+  // Handle file upload with validation and dynamic protected attribute
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setFileName(file.name);
-      
       // Validate file extension first
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      
       if (selectedDataSource === 'json' && fileExtension !== 'json') {
         toast({
           title: 'Invalid file format',
-          description: 'Please upload a JSON file with .json extension',
+          description: 'Please upload a valid JSON file.',
           variant: 'destructive'
         });
-        e.target.value = '';
-        setFileName('');
-        setFileData('');
         return;
       }
-      
       if (selectedDataSource === 'csv' && fileExtension !== 'csv') {
         toast({
           title: 'Invalid file format',
-          description: 'Please upload a CSV file with .csv extension',
+          description: 'Please upload a valid CSV file.',
           variant: 'destructive'
         });
-        e.target.value = '';
-        setFileName('');
-        setFileData('');
         return;
       }
-      
+      // Parse CSV headers for dynamic protected attribute selection
       const reader = new FileReader();
-      
       reader.onload = (event) => {
         const content = event.target?.result as string;
-        
-        // Check if the file is actually HTML instead of JSON/CSV
-        if (content.trim().startsWith('<!DOCTYPE') || content.trim().startsWith('<html')) {
-          toast({
-            title: 'Invalid file content',
-            description: 'The file appears to be HTML, not a valid ' + selectedDataSource.toUpperCase() + ' file',
-            variant: 'destructive'
-          });
-          e.target.value = '';
-          setFileName('');
-          setFileData('');
-          return;
-        }
-        
-        // Additional validation for JSON files
-        if (selectedDataSource === 'json') {
-          try {
-            JSON.parse(content);
-          } catch (error) {
-            toast({
-              title: 'Invalid JSON',
-              description: 'The file does not contain valid JSON data',
-              variant: 'destructive'
-            });
-            e.target.value = '';
-            setFileName('');
-            setFileData('');
-            return;
+        Papa.parse(content, {
+          preview: 1,
+          skipEmptyLines: true,
+          complete: (results: any) => {
+            if (results.data && results.data[0]) {
+              setCsvColumns(results.data[0] as string[]);
+              setProtectedAttribute(""); // Reset selection
+            } else {
+              setCsvColumns([]);
+              setProtectedAttribute("");
+            }
           }
-        }
-        
-        // If it passes all validation, set the file data
-        setFileData(content);
-      };
-      
-      reader.onerror = () => {
-        toast({
-          title: 'Error reading file',
-          description: 'Failed to read the file content',
-          variant: 'destructive'
         });
-        e.target.value = '';
-        setFileName('');
-        setFileData('');
+        setFileData(content); // <-- ensure fileData is set
       };
-      
       reader.readAsText(file);
     }
   };
+  
+  // When protectedAttribute changes, auto-generate group mappings
+  useEffect(() => {
+    if (!protectedAttribute || csvColumns.length === 0) return;
+    // Try to guess unique values for the selected attribute
+    let defaultMapping = {};
+    if (protectedAttribute === 'gender') {
+      defaultMapping = {
+        gender: {
+          privileged: ['Female'],
+          unprivileged: ['Male']
+        }
+      };
+    } else if (protectedAttribute === 'race') {
+      defaultMapping = {
+        race: {
+          privileged: ['White'],
+          unprivileged: ['Black', 'Asian', 'Hispanic']
+        }
+      };
+    } else {
+      // Try to guess from the first row of the CSV
+      if (fileData) {
+        const rows = fileData.split('\n');
+        if (rows.length > 1) {
+          const headers = rows[0].split(',');
+          const idx = headers.indexOf(protectedAttribute);
+          if (idx !== -1) {
+            const values = Array.from(new Set(rows.slice(1).map(row => row.split(',')[idx]).filter(Boolean)));
+            if (values.length > 1) {
+              defaultMapping = {
+                [protectedAttribute]: {
+                  privileged: [values[0]],
+                  unprivileged: values.slice(1)
+                }
+              };
+            }
+          }
+        }
+      }
+    }
+    setGroupMappings(JSON.stringify(defaultMapping, null, 2));
+  }, [protectedAttribute, fileData, csvColumns]);
   
   // Create a new scan
   const createScanMutation = useMutation({
@@ -267,19 +298,36 @@ export function BiasAnalysis() {
     onSuccess: (data) => {
       setSelectedScanId(data.id);
       
-      // Process the scan with the uploaded data
-      if (selectedDataSource === 'webhook') {
-        processScanMutation.mutate({
-          scanId: data.id,
-          webhookUrl: testDataUrl
+      // Parse group mappings
+      let parsedGroupMappings;
+      try {
+        parsedGroupMappings = JSON.parse(groupMappings);
+      } catch (e) {
+        toast({
+          title: 'Invalid group mappings',
+          description: 'Please provide valid JSON for group mappings',
+          variant: 'destructive'
         });
-      } else {
-        processScanMutation.mutate({
-          scanId: data.id,
-          fileData: fileData as string,
-          fileType: selectedDataSource
-        });
+        return;
       }
+
+      // Prepare payload
+      const payload = selectedDataSource === 'webhook'
+        ? {
+            scanId: data.id,
+            webhookUrl: testDataUrl,
+            protected_attributes: [protectedAttribute],
+            group_mappings: parsedGroupMappings || {}
+          }
+        : {
+            scanId: data.id,
+            fileData: fileData as string,
+            fileType: selectedDataSource,
+            protected_attributes: [protectedAttribute],
+            group_mappings: parsedGroupMappings || {}
+          };
+      console.log('Submitting processScanMutation payload:', payload);
+      processScanMutation.mutate(payload);
     },
     onError: (error: Error) => {
       toast({
@@ -297,18 +345,20 @@ export function BiasAnalysis() {
       fileData?: string;
       fileType?: string;
       webhookUrl?: string;
+      protected_attributes?: string[];
+      group_mappings?: any;
     }) => {
       const res = await apiRequest('POST', `/api/bias-analysis/scans/${data.scanId}/process`, data);
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast({
         title: 'Analysis initiated',
         description: 'Your bias analysis is now processing. You can view results when complete.',
       });
-      
       refetchScans();
-      
+      setActiveTab('results');
+      setSelectedScanId(variables.scanId); // Ensure the new scan is selected
       // Reset form
       setScanName('');
       setScanDescription('');
@@ -349,6 +399,57 @@ export function BiasAnalysis() {
       toast({
         title: 'Missing webhook URL',
         description: 'Please provide a webhook URL for data source',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validate protected attribute
+    if (!protectedAttribute) {
+      toast({
+        title: 'Missing protected attribute',
+        description: 'Please select a protected attribute',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // --- CSV protected attribute validation ---
+    if (selectedDataSource === 'csv' && csvColumns.length > 0) {
+      if (!csvColumns.includes(protectedAttribute)) {
+        toast({
+          title: 'Invalid protected attribute',
+          description: `The selected protected attribute (${protectedAttribute}) is not present in the uploaded CSV.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+    }
+
+    // Parse and validate group mappings
+    let parsedGroupMappings;
+    try {
+      parsedGroupMappings = JSON.parse(groupMappings);
+      if (!parsedGroupMappings[protectedAttribute]) {
+        toast({
+          title: 'Invalid group mappings',
+          description: `Missing group mappings for protected attribute: ${protectedAttribute}`,
+          variant: 'destructive'
+        });
+        return;
+      }
+      if (!parsedGroupMappings[protectedAttribute].privileged || !parsedGroupMappings[protectedAttribute].unprivileged) {
+        toast({
+          title: 'Invalid group mappings',
+          description: `Group mappings for ${protectedAttribute} must specify both privileged and unprivileged groups`,
+          variant: 'destructive'
+        });
+        return;
+      }
+    } catch (e) {
+      toast({
+        title: 'Invalid group mappings',
+        description: 'Please provide valid JSON for group mappings',
         variant: 'destructive'
       });
       return;
@@ -402,12 +503,12 @@ export function BiasAnalysis() {
   const renderDashboard = () => {
     // Calculate summary stats from scans data
     const scanStats = useMemo(() => {
-      if (!scans) return { warnings: 0, failures: 0, total: 0, passRate: 0 };
+      if (!Array.isArray(scans)) return { warnings: 0, failures: 0, total: 0, passRate: 0 };
       
       const total = scans.length;
-      const warnings = scans.filter(scan => scan.status === 'completed' && scan.name.toLowerCase().includes('warning')).length;
-      const failures = scans.filter(scan => scan.status === 'failed').length;
-      const completed = scans.filter(scan => scan.status === 'completed').length;
+      const warnings = scans.filter((scan: BiasAnalysisScan) => scan.status === 'completed' && scan.name.toLowerCase().includes('warning')).length;
+      const failures = scans.filter((scan: BiasAnalysisScan) => scan.status === 'failed').length;
+      const completed = scans.filter((scan: BiasAnalysisScan) => scan.status === 'completed').length;
       const passRate = total > 0 ? ((completed - warnings - failures) / total) * 100 : 0;
       
       return { warnings, failures, total, passRate };
@@ -496,7 +597,7 @@ export function BiasAnalysis() {
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : scans && scans.length > 0 ? (
+              ) : scans && Array.isArray(scans) && scans.length > 0 ? (
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
@@ -509,7 +610,7 @@ export function BiasAnalysis() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {scans.map(scan => (
+                      {scans.map((scan: BiasAnalysisScan) => (
                         <TableRow key={scan.id}>
                           <TableCell className="font-medium">{scan.name}</TableCell>
                           <TableCell>{scan.dataSource}</TableCell>
@@ -654,6 +755,32 @@ export function BiasAnalysis() {
                     </div>
                   </div>
                 )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Protected Attribute</label>
+                  <Select
+                    value={protectedAttribute}
+                    onValueChange={setProtectedAttribute}
+                    disabled={csvColumns.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select protected attribute" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {csvColumns.map((col) => (
+                        <SelectItem key={col} value={col}>{col}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Group Mappings (JSON)</label>
+                  <Textarea
+                    placeholder='e.g. {"race": {"privileged": ["White"], "unprivileged": ["Black", "Asian", "Hispanic"]}}'
+                    value={groupMappings}
+                    onChange={e => setGroupMappings(e.target.value)}
+                    rows={3}
+                  />
+                </div>
               </div>
             </CardContent>
         </Card>
@@ -666,8 +793,9 @@ export function BiasAnalysis() {
               className="px-8 py-6 text-lg font-medium min-w-[200px]" 
               onClick={handleStartAnalysis}
               disabled={
-                !scanName || 
-                createScanMutation.isPending || 
+                !scanName ||
+                !protectedAttribute ||
+                createScanMutation.isPending ||
                 processScanMutation.isPending ||
                 (selectedDataSource !== 'webhook' && !fileData) ||
                 (selectedDataSource === 'webhook' && !testDataUrl)
@@ -762,10 +890,9 @@ export function BiasAnalysis() {
     const { scan, resultsByGroup } = selectedScan;
     
     // Calculate overall status based on results
-    const allResults = Object.values(resultsByGroup).flat();
-    const failCount = allResults.filter(result => result.status === 'fail').length;
-    const warningCount = allResults.filter(result => result.status === 'warning').length;
-    
+    const allResults = Object.values(resultsByGroup).flat() as BiasAnalysisResult[];
+    const failCount = allResults.filter((result: BiasAnalysisResult) => result.status === 'fail').length;
+    const warningCount = allResults.filter((result: BiasAnalysisResult) => result.status === 'warning').length;
     let overallStatus = 'pass';
     if (failCount > 0) {
       overallStatus = 'fail';
@@ -779,7 +906,7 @@ export function BiasAnalysis() {
     Object.entries(resultsByGroup).forEach(([groupName, results]) => {
       if (groupName !== 'overall') {
         // This is a demographic group, let's collect its data
-        demographicGroups[groupName] = results.map(result => {
+        demographicGroups[groupName] = (results as BiasAnalysisResult[]).map((result: BiasAnalysisResult) => {
           // Parse the additional data if available
           let additionalData = {};
           try {
@@ -805,9 +932,9 @@ export function BiasAnalysis() {
     // If we don't have any demographic groups but have overall results
     if (Object.keys(demographicGroups).length === 0 && resultsByGroup.overall) {
       // Create a gender group with fabricated data from overall results
-      demographicGroups['analysis'] = resultsByGroup.overall.map(result => ({
+      demographicGroups['analysis'] = (resultsByGroup.overall as BiasAnalysisResult[]).map((result: BiasAnalysisResult) => ({
         id: result.id.toString(),
-        name: result.metricName,
+        metricName: result.metricName,
         score: result.score,
         threshold: result.threshold,
         status: result.status,
@@ -825,9 +952,27 @@ export function BiasAnalysis() {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={async () => {
+              if (!selectedScanId) return;
+              try {
+                const response = await fetch(`/api/bias-analysis/scans/${selectedScanId}/csv`, {
+                  method: 'GET',
+                  credentials: 'include',
+                });
+                if (!response.ok) throw new Error('Failed to download CSV');
+                const blob = await response.blob();
+                saveAs(blob, `bias_analysis_results_scan_${selectedScanId}.csv`);
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+                toast({ 
+                  title: 'CSV Download Failed', 
+                  description: errorMessage, 
+                  variant: 'destructive' 
+                });
+              }
+            }}>
               <FileText className="h-4 w-4 mr-2" />
-              Export PDF
+              Download CSV
             </Button>
             <Button size="sm" onClick={() => setActiveTab('dashboard')}>
               <BarChart4 className="h-4 w-4 mr-2" />
@@ -876,7 +1021,7 @@ export function BiasAnalysis() {
             <CardContent>
               <div className="space-y-4">
                 {resultsByGroup.overall ? (
-                  resultsByGroup.overall.map(metric => (
+                  (resultsByGroup.overall as BiasAnalysisResult[]).map((metric: BiasAnalysisResult) => (
                     <div key={metric.id} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div>
@@ -940,9 +1085,9 @@ export function BiasAnalysis() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {metrics.map(metric => (
+                            {(metrics as BiasAnalysisResult[]).map((metric: BiasAnalysisResult) => (
                               <TableRow key={metric.id}>
-                                <TableCell className="font-medium">{metric.name}</TableCell>
+                                <TableCell className="font-medium">{metric.metricName}</TableCell>
                                 <TableCell>{metric.score}</TableCell>
                                 <TableCell>{metric.threshold}</TableCell>
                                 <TableCell>{getStatusBadge(metric.status)}</TableCell>
